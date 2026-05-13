@@ -6,7 +6,7 @@
         <div class="col-lg-6">
           <span class="badge text-bg-light border mb-3">
             <i class="fas fa-bolt text-warning me-1"></i>
-            Facturación electrónica simple y profesional
+            Solución para e-CF y gestión comercial
           </span>
 
           <h1 class="display-5 fw-bold mb-3">
@@ -14,8 +14,7 @@
           </h1>
 
           <p class="lead text-muted mb-4">
-            Gestiona clientes, productos, impuestos y comprobantes desde una plataforma moderna.
-            Ideal para empresas que buscan eficiencia, trazabilidad y una operación más ordenada.
+            Effisort te ayuda a emitir comprobantes electrónicos, controlar tus ventas, gestionar clientes y mantener tu operación organizada desde una sola plataforma.
           </p>
 
           <div class="d-flex flex-wrap gap-2 mb-4">
@@ -189,6 +188,33 @@
     </div>
   </section>
 
+  <!-- Ideal para -->
+  <section id="ideal-para" class="py-5 bg-light-subtle">
+    <div class="container">
+      <div class="text-center mb-4">
+        <span class="badge text-bg-primary-subtle text-primary border mb-3">Ideal para</span>
+        <h2 class="fw-bold mb-2">Ideal para negocios que necesitan facturar con más control</h2>
+        <p class="text-muted mb-0">
+          Effisort se adapta a empresas que buscan simplificar su facturación electrónica,
+          organizar sus procesos comerciales y tener mayor visibilidad de su operación.
+        </p>
+      </div>
+
+      <div class="row g-4 justify-content-center">
+        <div class="col-12 col-sm-6 col-lg-4" v-for="item in idealFor" :key="item.title">
+          <div class="card h-100 border-0 shadow-sm benefit-card">
+            <div class="card-body p-4">
+              <div class="icon-box mb-3">
+                <i :class="item.icon"></i>
+              </div>
+              <h5 class="fw-semibold mb-0">{{ item.title }}</h5>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
   <!-- Cómo funciona -->
   <section class="py-5 bg-light-subtle">
     <div class="container">
@@ -223,7 +249,7 @@
         </p>
       </div>
 
-      <div class="row g-4 align-items-stretch">
+      <div class="row g-4 align-items-stretch justify-content-center">
         <div class="col-lg-4" v-for="p in plans" :key="p.name">
           <div class="card h-100 border-0 shadow-sm pricing-card" :class="{ 'pricing-card-featured': p.featured }">
             <div class="card-body p-4 d-flex flex-column">
@@ -346,10 +372,10 @@ useHead({
 })
 
 const benefits = [
-  { icon: 'fas fa-gauge-high', title: 'Rápido y sencillo', description: 'Interfaz intuitiva para emitir facturas en pocos pasos y reducir errores operativos.' },
-  { icon: 'fas fa-users', title: 'Gestión de clientes', description: 'Busca, selecciona y administra clientes con datos fiscales y de contacto centralizados.' },
-  { icon: 'fas fa-chart-line', title: 'Control de ingresos', description: 'Visualiza actividad de facturación y obtén una mejor visión de tu operación comercial.' },
-  { icon: 'fas fa-shield-halved', title: 'Operación confiable', description: 'Flujos organizados y trazabilidad para equipos que necesitan consistencia y control.' }
+  { icon: 'fas fa-bolt', title: 'Facturación más rápida', description: 'Emite comprobantes electrónicos en pocos pasos, reduciendo errores y tiempo operativo.' },
+  { icon: 'fas fa-chart-line', title: 'Mayor control del negocio', description: 'Visualiza ventas, clientes, saldos pendientes y reportes desde un solo panel.' },
+  { icon: 'fas fa-layer-group', title: 'Operación más organizada', description: 'Centraliza la información comercial de tu empresa y facilita el seguimiento de cada transacción.' },
+  { icon: 'fas fa-arrow-trend-up', title: 'Listo para crecer', description: 'Escala tu operación con usuarios, inventario, sucursales, integraciones y funcionalidades avanzadas.' }
 ]
 
 const featureHighlights = [
@@ -364,42 +390,65 @@ const features = [
   { icon: 'fas fa-file-circle-plus', title: 'Generación de facturas', description: 'Crea facturas con líneas de detalle, cantidades, precios e impuestos de forma rápida.' },
   { icon: 'fas fa-address-book', title: 'Clientes y datos fiscales', description: 'Asocia clientes con RNC/Cédula, correo, teléfono y dirección desde un flujo práctico.' },
   { icon: 'fas fa-receipt', title: 'Resumen y totales', description: 'Obtén subtotales, impuestos y total general con una visualización clara del comprobante.' },
+  { icon: 'fas fa-hand-holding-dollar', title: 'Control financiero integrado', description: 'Administra cuentas por cobrar y cuentas por pagar, visualiza saldos pendientes y mejora el control del flujo de efectivo de tu negocio.' },
   { icon: 'fas fa-layer-group', title: 'Planes escalables', description: 'Elige funcionalidades y capacidad según el tamaño y crecimiento de tu negocio.' }
 ]
 
+const idealFor = [
+  { icon: 'fas fa-user-tie', title: 'Emprendedores y pequeños negocios' },
+  { icon: 'fas fa-store', title: 'Tiendas y comercios' },
+  { icon: 'fas fa-briefcase', title: 'Empresas de servicios' },
+  { icon: 'fas fa-code-branch', title: 'Negocios con varias sucursales' },
+  { icon: 'fas fa-chart-line', title: 'Empresas que necesitan reportes e integraciones' }
+]
+
 const steps = [
-  { title: 'Configura tu cuenta', description: 'Define datos del negocio, usuarios y parámetros básicos de facturación.' },
-  { title: 'Registra clientes y conceptos', description: 'Carga tus clientes y productos/servicios para emitir facturas más rápido.' },
-  { title: 'Genera y gestiona facturas', description: 'Emite comprobantes y administra tu operación desde un solo lugar.' }
+  { title: 'Configura tu empresa', description: 'Registra los datos de tu negocio, usuarios, clientes y parámetros básicos de facturación.' },
+  { title: 'Emite tus comprobantes', description: 'Genera facturas electrónicas, notas de crédito o débito desde un panel fácil de utilizar.' },
+  { title: 'Controla tu operación', description: 'Consulta reportes, ventas, cuentas pendientes, inventario y métricas importantes para tu negocio.' }
 ]
 
 const plans = [
   {
-    name: 'Starter',
-    tagline: 'Ideal para emprendedores y negocios pequeños',
-    price: 'RD$1,490',
-    note: 'Hasta 300 facturas/mes',
+    name: 'Plan Básico Effisort',
+    tagline: 'Ideal para emprendedores y pequeños negocios. Facturación electrónica simple y cumplimiento DGII al mejor precio.',
+    price: 'RD$990',
+    note: 'RD$9,900/año · 1 mes gratis',
     featured: false,
-    cta: 'Elegir Starter',
-    features: ['1 usuario', 'Facturación electrónica básica', 'Catálogo de clientes', 'Productos/servicios', 'Soporte por correo']
+    cta: 'Comenzar con Básico',
+    features: [
+      'Emisión de facturas electrónicas (e-CF)',
+      'Notas de crédito y débito',
+      'Gestión básica de clientes',
+      'Reportes de ventas',
+      'Envío automático por email',
+      'Cumplimiento DGII',
+      'Hasta 100 facturas electrónicas al mes',
+      '1 usuario incluido',
+      'Soporte por email y WhatsApp'
+    ]
   },
   {
-    name: 'Business',
-    tagline: 'Para empresas en crecimiento con mayor volumen',
-    price: 'RD$3,990',
-    note: 'Hasta 2,500 facturas/mes',
+    name: 'Plan Avanzado Effisort',
+    tagline: 'Ideal para negocios en crecimiento. Herramientas avanzadas para llevar tu facturación al siguiente nivel.',
+    price: 'RD$2,990',
+    note: 'RD$29,900/año · 2 meses gratis',
     featured: true,
-    cta: 'Elegir Business',
-    features: ['5 usuarios', 'Facturación electrónica avanzada', 'Roles y permisos básicos', 'Reportes operativos', 'Soporte prioritario']
-  },
-  {
-    name: 'Enterprise',
-    tagline: 'Para operaciones exigentes y personalización',
-    price: 'Cotización',
-    note: 'Volumen y alcance a medida',
-    featured: false,
-    cta: 'Solicitar propuesta',
-    features: ['Usuarios según acuerdo', 'Integraciones personalizadas', 'Ambientes dedicados (opcional)', 'Acompañamiento', 'SLA / soporte especializado']
+    cta: 'Elegir Plan Avanzado',
+    features: [
+      'Todo lo incluido en el Plan Básico',
+      'Facturación electrónica ilimitada (e-CF)',
+      'Hasta 5 usuarios simultáneos',
+      'Control de inventario completo',
+      'Gestión de cuentas por cobrar y cuentas por pagar',
+      'Reportes avanzados',
+      'Dashboard de ventas',
+      'Facturación recurrente',
+      'Gestión multi-sucursal',
+      'API para integraciones',
+      'Soporte prioritario',
+      'Usuarios adicionales disponibles con cargo adicional'
+    ]
   }
 ]
 
