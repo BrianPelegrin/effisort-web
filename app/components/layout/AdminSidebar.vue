@@ -63,6 +63,11 @@
                                     </NuxtLink>
                                 </li>
                                 <li>
+                                    <NuxtLink to="/admin/billing/credit-notes">
+                                        <span class="sub-item">Notas de Crédito</span>
+                                    </NuxtLink>
+                                </li>
+                                <li>
                                     <NuxtLink to="/admin/billing/settings">
                                         <span class="sub-item">Ajustes de Facturacion</span>
                                     </NuxtLink>

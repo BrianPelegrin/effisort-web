@@ -42,77 +42,74 @@
         <div class="col-lg-6">
           <div class="hero-card card border-0 shadow-lg">
             <div class="card-body p-4">
-              <div class="d-flex justify-content-between align-items-center mb-3">
+              <div class="d-flex justify-content-between align-items-start gap-3 mb-4">
                 <div>
-                  <h5 class="mb-1">Resumen de facturación</h5>
-                  <small class="text-muted">Vista de ejemplo del sistema</small>
+                  <h5 class="mb-1">Plataforma Effisort</h5>
+                  <small class="text-muted">
+                    Una solución diseñada para organizar tu facturación, clientes y operación comercial.
+                  </small>
                 </div>
-                <span class="badge text-bg-success">Online</span>
+                <span class="badge text-bg-primary">e-CF</span>
               </div>
 
-              <div class="row g-3 mb-3">
-                <div class="col-6">
-                  <div class="mini-stat">
-                    <div class="text-muted small">Facturas del mes</div>
-                    <div class="fs-4 fw-bold">1,284</div>
+              <div class="platform-modules">
+                <div class="platform-module">
+                  <div class="icon-box soft platform-module-icon">
+                    <i class="fas fa-file-invoice-dollar"></i>
+                  </div>
+                  <div>
+                    <h6 class="fw-semibold mb-1">Facturación electrónica</h6>
+                    <p class="text-muted small mb-0">
+                      Emite y organiza comprobantes electrónicos e-CF de forma simple.
+                    </p>
                   </div>
                 </div>
-                <div class="col-6">
-                  <div class="mini-stat">
-                    <div class="text-muted small">Ingresos facturados</div>
-                    <div class="fs-4 fw-bold">RD$2.4M</div>
+
+                <div class="platform-module">
+                  <div class="icon-box soft platform-module-icon">
+                    <i class="fas fa-briefcase"></i>
+                  </div>
+                  <div>
+                    <h6 class="fw-semibold mb-1">Gestión comercial</h6>
+                    <p class="text-muted small mb-0">
+                      Administra clientes, ventas, productos y documentos desde un solo lugar.
+                    </p>
                   </div>
                 </div>
-                <div class="col-6">
-                  <div class="mini-stat">
-                    <div class="text-muted small">Clientes activos</div>
-                    <div class="fs-4 fw-bold">326</div>
+
+                <div class="platform-module">
+                  <div class="icon-box soft platform-module-icon">
+                    <i class="fas fa-hand-holding-dollar"></i>
+                  </div>
+                  <div>
+                    <h6 class="fw-semibold mb-1">Control financiero</h6>
+                    <p class="text-muted small mb-0">
+                      Gestiona cuentas por cobrar y cuentas por pagar con mayor visibilidad.
+                    </p>
                   </div>
                 </div>
-                <div class="col-6">
-                  <div class="mini-stat">
-                    <div class="text-muted small">Pendientes</div>
-                    <div class="fs-4 fw-bold text-warning">24</div>
+
+                <div class="platform-module">
+                  <div class="icon-box soft platform-module-icon">
+                    <i class="fas fa-chart-line"></i>
+                  </div>
+                  <div>
+                    <h6 class="fw-semibold mb-1">Reportes e integraciones</h6>
+                    <p class="text-muted small mb-0">
+                      Consulta información clave y conecta Effisort con otros sistemas.
+                    </p>
                   </div>
                 </div>
               </div>
 
-              <div class="table-responsive">
-                <table class="table table-sm align-middle mb-0">
-                  <thead class="table-light">
-                    <tr>
-                      <th>Factura</th>
-                      <th>Cliente</th>
-                      <th>Total</th>
-                      <th>Estado</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    <tr>
-                      <td>FAC-001245</td>
-                      <td>Empresa Atlas SRL</td>
-                      <td>RD$18,290</td>
-                      <td><span class="badge text-bg-success">Generada</span></td>
-                    </tr>
-                    <tr>
-                      <td>FAC-001246</td>
-                      <td>Comercial Nova</td>
-                      <td>RD$7,850</td>
-                      <td><span class="badge text-bg-warning">Pendiente</span></td>
-                    </tr>
-                    <tr>
-                      <td>FAC-001247</td>
-                      <td>Servicios Delta</td>
-                      <td>RD$32,400</td>
-                      <td><span class="badge text-bg-info">En proceso</span></td>
-                    </tr>
-                  </tbody>
-                </table>
-              </div>
-
-              <div class="mt-3 d-flex justify-content-between align-items-center">
-                <small class="text-muted">Interfaz moderna, rápida y fácil de usar</small>
-                <span class="text-primary fw-semibold">e-CF Ready</span>
+              <div class="hero-flow mt-4">
+                <span>Configura</span>
+                <i class="fas fa-arrow-right"></i>
+                <span>Emite</span>
+                <i class="fas fa-arrow-right"></i>
+                <span>Envía</span>
+                <i class="fas fa-arrow-right"></i>
+                <span>Controla</span>
               </div>
             </div>
           </div>
@@ -460,3 +457,64 @@ const faqs = [
 ]
 </script>
 
+<style scoped>
+.hero-card {
+  max-width: 100%;
+  box-sizing: border-box;
+}
+
+.platform-modules {
+  display: grid;
+  gap: 14px;
+}
+
+.platform-module {
+  display: flex;
+  gap: 14px;
+  align-items: flex-start;
+  padding: 14px;
+  border: 1px solid rgba(15, 23, 42, 0.06);
+  border-radius: 14px;
+  background: #fff;
+  max-width: 100%;
+  box-sizing: border-box;
+}
+
+.platform-module-icon {
+  flex: 0 0 auto;
+}
+
+.platform-module > div:last-child {
+  min-width: 0;
+}
+
+.platform-module h6,
+.platform-module p {
+  overflow-wrap: anywhere;
+}
+
+.hero-flow {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  padding: 12px;
+  border-radius: 14px;
+  background: rgba(13, 110, 253, 0.06);
+  color: #0d6efd;
+  font-size: 0.875rem;
+  font-weight: 600;
+  max-width: 100%;
+  box-sizing: border-box;
+}
+
+.hero-flow i {
+  font-size: 0.75rem;
+  opacity: 0.7;
+}
+
+.hero-flow span {
+  white-space: normal;
+}
+</style>
