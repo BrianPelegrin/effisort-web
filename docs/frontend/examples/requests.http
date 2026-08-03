@@ -1,0 +1,202 @@
+@baseUrl = http://localhost:5203
+@token = REEMPLAZAR_JWT
+@userId = REEMPLAZAR_USER_ID
+@clienteId = 00000000-0000-0000-0000-000000000000
+@articuloId = 00000000-0000-0000-0000-000000000000
+
+### Login
+POST {{baseUrl}}/api/auth/login
+Content-Type: application/json
+
+{
+  "email": "admin@empresa.com",
+  "password": "Secreto123"
+}
+
+### Registro multipart sin archivos opcionales
+POST {{baseUrl}}/api/auth/register
+Content-Type: multipart/form-data; boundary=OceanOneBoundary
+
+--OceanOneBoundary
+Content-Disposition: form-data; name="Rnc"
+
+101234567
+--OceanOneBoundary
+Content-Disposition: form-data; name="RazonSocial"
+
+Empresa Ejemplo SRL
+--OceanOneBoundary
+Content-Disposition: form-data; name="ActividadEconomica"
+
+Servicios
+--OceanOneBoundary
+Content-Disposition: form-data; name="ProvinciaId"
+
+010000
+--OceanOneBoundary
+Content-Disposition: form-data; name="MunicipioId"
+
+010101
+--OceanOneBoundary
+Content-Disposition: form-data; name="FullName"
+
+Ada Lovelace
+--OceanOneBoundary
+Content-Disposition: form-data; name="PhoneNumber"
+
+8095550101
+--OceanOneBoundary
+Content-Disposition: form-data; name="UserName"
+
+adalovelace
+--OceanOneBoundary
+Content-Disposition: form-data; name="Email"
+
+ada@empresa.com
+--OceanOneBoundary
+Content-Disposition: form-data; name="ConfirmEmail"
+
+ada@empresa.com
+--OceanOneBoundary
+Content-Disposition: form-data; name="Password"
+
+Secreto123
+--OceanOneBoundary
+Content-Disposition: form-data; name="ConfirmPassword"
+
+Secreto123
+--OceanOneBoundary--
+
+### Solicitar recuperación de contraseña
+POST {{baseUrl}}/api/auth/forgot-password
+Content-Type: application/json
+
+{
+  "email": "admin@empresa.com"
+}
+
+### Restablecer contraseña
+POST {{baseUrl}}/api/auth/reset-password
+Content-Type: application/json
+
+{
+  "email": "admin@empresa.com",
+  "resetCode": "REEMPLAZAR_TOKEN",
+  "newPassword": "NuevaClave123"
+}
+
+### NO DISPONIBLE: DgiiController está excluido del build; responde 404
+GET {{baseUrl}}/api/dgii/consulta-rnc?rnc=101234567
+
+### NO DISPONIBLE: usar GET /api/provincias
+GET {{baseUrl}}/api/dgii/consulta-provincias
+
+### NO DISPONIBLE: usar GET /api/municipios/provincia/{codigoProvincia}
+GET {{baseUrl}}/api/dgii/consulta-municipios?provincia=010000
+
+### Provincias activas
+GET {{baseUrl}}/api/provincias
+
+### Municipios activos por provincia
+GET {{baseUrl}}/api/municipios/provincia/010000
+
+### Comprobar autenticación y claims
+GET {{baseUrl}}/api/tokeninspector/check-auth
+Authorization: Bearer {{token}}
+
+### Ver claims individuales
+GET {{baseUrl}}/api/tokeninspector/claims
+Authorization: Bearer {{token}}
+
+### Listar roles (actualmente público)
+GET {{baseUrl}}/api/roles/list
+
+### Crear rol: el body es un string JSON
+POST {{baseUrl}}/api/roles/create
+Content-Type: application/json
+
+"TENANT_LISTS_ADMIN"
+
+### Asignar rol (actualmente público)
+POST {{baseUrl}}/api/roles/assign?userId={{userId}}&roleName=TENANT_LISTS_ADMIN
+
+### Consultar roles del usuario (actualmente público)
+GET {{baseUrl}}/api/roles/user/{{userId}}/roles
+
+### Remover rol (actualmente público)
+POST {{baseUrl}}/api/roles/remove?userId={{userId}}&roleName=TENANT_LISTS_ADMIN
+
+### Eliminar rol (actualmente público; DELETE puede ser bloqueado por CORS)
+DELETE {{baseUrl}}/api/roles/delete/TENANT_LISTS_ADMIN
+
+### Clientes activos
+GET {{baseUrl}}/api/clientes
+Authorization: Bearer {{token}}
+
+### Clientes incluyendo inactivos
+GET {{baseUrl}}/api/clientes?incluirInactivos=true
+Authorization: Bearer {{token}}
+
+### Crear cliente
+POST {{baseUrl}}/api/clientes
+Authorization: Bearer {{token}}
+Content-Type: application/json
+
+< ./cliente.json
+
+### Actualizar cliente
+PUT {{baseUrl}}/api/clientes/{{clienteId}}
+Authorization: Bearer {{token}}
+Content-Type: application/json
+
+< ./cliente.json
+
+### Desactivar cliente
+DELETE {{baseUrl}}/api/clientes/{{clienteId}}
+Authorization: Bearer {{token}}
+
+### Artículos activos
+GET {{baseUrl}}/api/articulos
+Authorization: Bearer {{token}}
+
+### Crear artículo
+POST {{baseUrl}}/api/articulos
+Authorization: Bearer {{token}}
+Content-Type: application/json
+
+< ./articulo.json
+
+### Actualizar artículo
+PUT {{baseUrl}}/api/articulos/{{articuloId}}
+Authorization: Bearer {{token}}
+Content-Type: application/json
+
+< ./articulo.json
+
+### Desactivar artículo
+DELETE {{baseUrl}}/api/articulos/{{articuloId}}
+Authorization: Bearer {{token}}
+
+### Catálogo de indicadores de facturación
+GET {{baseUrl}}/api/indicadoresfacturacion
+
+### Buscar documentos fiscales
+GET {{baseUrl}}/api/documentosfiscales/search?pageNumber=1&pageSize=10
+Authorization: Bearer {{token}}
+
+### Emitir e-CF desde JSON
+POST {{baseUrl}}/api/ecf/documentofiscal
+Authorization: Bearer {{token}}
+Content-Type: application/json
+Accept: text/xml
+
+< ./ecf-documento.json
+
+### Consultar TrackId
+POST {{baseUrl}}/api/ecf/consultartrackid?trackId=REEMPLAZAR_TRACK_ID
+Authorization: Bearer {{token}}
+Accept: text/xml
+
+### Descargar PDF Base64
+GET {{baseUrl}}/api/ecf/downloads/E310000000001
+Authorization: Bearer {{token}}

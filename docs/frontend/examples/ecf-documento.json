@@ -1,0 +1,67 @@
+{
+  "ecf": {
+    "encabezado": {
+      "version": "1.0",
+      "idDoc": {
+        "tipoeCF": "31",
+        "tipoIngresos": "01",
+        "tipoPago": 1,
+        "tablaFormasPago": {
+          "formaDePago": [
+            {
+              "formaPago": 1,
+              "montoPago": 1180.0
+            }
+          ]
+        }
+      },
+      "emisor": {
+        "rncEmisor": "101234567",
+        "razonSocialEmisor": "Empresa Ejemplo SRL",
+        "nombreComercial": "Empresa Ejemplo",
+        "direccionEmisor": "Santo Domingo",
+        "municipio": "010101",
+        "provincia": "010000",
+        "correoEmisor": "facturacion@empresa.com",
+        "fechaEmision": "26-07-2026"
+      },
+      "comprador": {
+        "rncComprador": "131234567",
+        "razonSocialComprador": "Cliente Ejemplo SRL",
+        "correoComprador": "compras@cliente.com",
+        "direccionComprador": "Santo Domingo"
+      },
+      "totales": {
+        "montoGravadoTotal": 1000.0,
+        "montoGravadoI1": 1000.0,
+        "itbiS1": 18,
+        "totalITBIS": 180.0,
+        "totalITBIS1": 180.0,
+        "montoTotal": 1180.0,
+        "valorPagar": 1180.0
+      }
+    },
+    "detallesItems": {
+      "item": [
+        {
+          "numeroLinea": 1,
+          "tablaCodigosItem": {
+            "codigosItem": [
+              {
+                "tipoCodigo": "INT",
+                "codigoItem": "ART-0001"
+              }
+            ]
+          },
+          "indicadorFacturacion": 1,
+          "nombreItem": "Servicio de consultoría",
+          "indicadorBienoServicio": 2,
+          "cantidadItem": 1.0,
+          "unidadMedida": 43,
+          "precioUnitarioItem": 1000.0,
+          "montoItem": 1000.0
+        }
+      ]
+    }
+  }
+}

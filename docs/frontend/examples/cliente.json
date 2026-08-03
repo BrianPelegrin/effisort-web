@@ -1,0 +1,22 @@
+{
+  "rncComprador": "131234567",
+  "identificadorExtranjero": null,
+  "razonSocialComprador": "Cliente Ejemplo SRL",
+  "contactoComprador": "María Pérez",
+  "correoComprador": "compras@cliente.com",
+  "direccionComprador": "Av. Principal 123",
+  "municipioComprador": "010101",
+  "provinciaComprador": "010000",
+  "paisComprador": "DO",
+  "fechaEntrega": null,
+  "contactoEntrega": "Almacén",
+  "direccionEntrega": "Av. Principal 123",
+  "telefonoAdicional": "8095550101",
+  "codigoInternoComprador": "CLI-0001",
+  "responsablePago": "María Pérez",
+  "informacionAdicionalComprador": null,
+  "tipoPrecio": 1,
+  "tipoPago": 1,
+  "terminoPago": 30,
+  "activo": true
+}

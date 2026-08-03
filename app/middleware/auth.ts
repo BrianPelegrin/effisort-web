@@ -1,16 +1,11 @@
-export default defineNuxtRouteMiddleware((to) =>{
+export default defineNuxtRouteMiddleware((to) => {
+    if (!to.path.startsWith('/admin')) return
 
-    console.log('validating auth')
-    
-    if(!to.path.startsWith('/admin')) return;
+    const authStore = useAuthStore()
+    if (import.meta.client && !authStore.isInitialized) authStore.initFromStorage()
 
-    const authStore = useAuthStore();
-
-    if(import.meta.client && !authStore.isInitialized) authStore.initFromStorage();
-
-
-    if(!authStore.isAuthenticated){
+    if (!authStore.isAuthenticated) {
+        authStore.clearSession()
         return navigateTo('/auth/login')
     }
-
 })

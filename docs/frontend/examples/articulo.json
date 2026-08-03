@@ -1,0 +1,17 @@
+{
+  "codigo": "ART-0001",
+  "tipoCodigo": "INT",
+  "indicadorFacturacion": 1,
+  "nombreItem": "Servicio de consultoría",
+  "indicadorBienoServicio": 2,
+  "descripcionItem": "Consultoría mensual",
+  "unidadMedida": 43,
+  "precioUnitarioItem": 1500.0,
+  "existencia": 0,
+  "codigoImpuesto": "ITBIS18",
+  "cantidadReferencia": null,
+  "unidadReferencia": null,
+  "gradosAlcohol": null,
+  "precioUnitarioReferencia": null,
+  "activo": true
+}
