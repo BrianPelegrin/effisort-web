@@ -1,0 +1,21 @@
+{
+  "id": "c88c7491-9875-4bc2-8977-23c932b98242",
+  "userName": "oceanadmin",
+  "email": "admin@empresa.com",
+  "phoneNumber": "8095550101",
+  "empresa": {
+    "tenantId": "8ec759e0-0658-4be7-84e2-390658d90f85",
+    "nombreRazonSocial": "EMPRESA EJEMPLO SRL",
+    "nombreComercial": "EMPRESA EJEMPLO",
+    "sucursal": null,
+    "rnc": "101234567",
+    "direccion": "AV. EJEMPLO NO. 123, SANTO DOMINGO",
+    "telefono": "8095550100",
+    "telefono2": null,
+    "municipioId": "010100",
+    "provinciaId": "010000",
+    "correo": "facturacion@empresa-ejemplo.com",
+    "webSite": null,
+    "actividadEconomica": "SERVICIOS DE CONSULTORIA"
+  }
+}

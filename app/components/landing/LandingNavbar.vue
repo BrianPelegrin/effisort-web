@@ -5,16 +5,15 @@
         <!-- Brand -->
         <NuxtLink to="/" class="navbar-brand brand-wrap">
           <span class="brand-logo-box">
-            <!-- Coloca tu logo en public/images/effisort-logo.png -->
             <img
-              src="/images/effisort-logo.png"
+              src="/images/effisort-logo-navbar.png"
               alt="Effisort Software Solutions"
               class="brand-logo-img"
             />
           </span>
         </NuxtLink>
 
-        <!-- Mobile toggler -->
+        <!-- Mobile toggle -->
         <button
           class="navbar-toggler custom-toggler"
           type="button"
@@ -28,45 +27,24 @@
         </button>
 
         <div id="landingNav" class="collapse navbar-collapse">
-          <!-- Center links -->
+          <!-- Main navigation -->
           <ul class="navbar-nav mx-lg-auto align-items-lg-center nav-links mt-4 mt-lg-0">
-            <li class="nav-item">
-              <a class="nav-link active" href="#inicio">
-                Inicio
-              </a>
-            </li>
-
-            <li class="nav-item">
-              <a class="nav-link" href="#funciones">
-                Funciones
-              </a>
-            </li>
-
-            <li class="nav-item">
-              <a class="nav-link" href="#modulos">
-                Módulos
-              </a>
-            </li>
-
-            <li class="nav-item">
-              <a class="nav-link" href="#planes">
-                Precios
-              </a>
-            </li>
-
-            <li class="nav-item">
-              <a class="nav-link" href="#contacto">
-                Contacto
+            <li v-for="link in navLinks" :key="link.section" class="nav-item">
+              <a
+                class="nav-link"
+                :class="{ active: activeSection === link.section }"
+                :href="`#${link.section}`"
+                :aria-current="activeSection === link.section ? 'page' : undefined"
+                @click="handleNavigation(link.section)"
+              >
+                {{ link.label }}
               </a>
             </li>
           </ul>
 
-          <!-- Actions -->
+          <!-- Navigation actions -->
           <div class="navbar-actions mt-4 mt-lg-0">
-            <NuxtLink to="/auth/login" class="btn btn-login">
-              Iniciar sesión
-            </NuxtLink>
-
+            <NuxtLink to="/auth/login" class="btn btn-login">Iniciar sesión</NuxtLink>
             <a href="#planes" class="btn btn-primary-cta">
               Comenzar
               <i class="bi bi-arrow-right ms-2"></i>
@@ -78,18 +56,64 @@
   </header>
 </template>
 
-<script setup lang="ts"></script>
+<script setup lang="ts">
+const navLinks = [
+  { section: 'inicio', label: 'Inicio' },
+  { section: 'beneficios', label: 'Funciones' },
+  { section: 'funcionalidades', label: 'Módulos' },
+  { section: 'planes', label: 'Precios' },
+  { section: 'cta', label: 'Contacto' },
+] as const
+
+type LandingSection = typeof navLinks[number]['section']
+
+const activeSection = ref<LandingSection>('inicio')
+
+function updateActiveSection() {
+  const activationPoint = window.scrollY + window.innerHeight * 0.35
+  let currentSection: LandingSection = navLinks[0].section
+
+  for (const link of navLinks) {
+    const section = document.getElementById(link.section)
+    if (section && section.offsetTop <= activationPoint) currentSection = link.section
+  }
+
+  activeSection.value = currentSection
+}
+
+function handleNavigation(section: LandingSection) {
+  activeSection.value = section
+
+  const navigation = document.getElementById('landingNav')
+  const toggle = document.querySelector<HTMLButtonElement>('[data-bs-target="#landingNav"]')
+
+  navigation?.classList.remove('show')
+  toggle?.setAttribute('aria-expanded', 'false')
+}
+
+onMounted(() => {
+  updateActiveSection()
+  window.addEventListener('scroll', updateActiveSection, { passive: true })
+  window.addEventListener('resize', updateActiveSection)
+})
+
+onBeforeUnmount(() => {
+  window.removeEventListener('scroll', updateActiveSection)
+  window.removeEventListener('resize', updateActiveSection)
+})
+</script>
 
 <style scoped>
 .landing-navbar {
-  background: linear-gradient(135deg, #061833 0%, #071f45 48%, #082b63 100%);
-  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
   z-index: 1030;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+  background: linear-gradient(110deg, #021634 0%, #031b45 52%, #05285f 100%);
+  box-shadow: 0 8px 24px rgba(3, 27, 69, 0.12);
 }
 
 .navbar {
-  min-height: 76px;
-  padding: 0.85rem 0;
+  min-height: 72px;
+  padding: 0.65rem 0;
 }
 
 .brand-wrap {
@@ -99,23 +123,19 @@
 }
 
 .brand-logo-box {
-  height: 48px;
-  max-width: 230px;
-  padding: 0.35rem 0.7rem;
-  border-radius: 14px;
-  background: #ffffff;
-  border: 1px solid rgba(226, 232, 240, 0.9);
   display: inline-flex;
+  width: 172px;
+  height: 46px;
   align-items: center;
-  justify-content: center;
+  justify-content: flex-start;
+  overflow: hidden;
 }
 
 .brand-logo-img {
-  height: 34px;
-  width: auto;
-  max-width: 200px;
-  object-fit: contain;
   display: block;
+  width: 172px;
+  height: auto;
+  object-fit: contain;
 }
 
 .nav-links {
@@ -124,32 +144,32 @@
 
 .nav-link {
   position: relative;
-  color: rgba(255, 255, 255, 0.78);
-  font-size: 0.94rem;
-  font-weight: 600;
   padding: 0.7rem 0.95rem !important;
   border-radius: 999px;
-  transition: all 0.18s ease;
+  color: rgba(255, 255, 255, 0.78);
+  font-size: 0.9rem;
+  font-weight: 650;
+  transition: color 0.18s ease, background 0.18s ease;
 }
 
 .nav-link:hover {
-  color: #ffffff;
+  color: #fff;
   background: rgba(255, 255, 255, 0.08);
 }
 
 .nav-link.active {
-  color: #ffffff;
+  color: #fff;
 }
 
 .nav-link.active::after {
-  content: "";
   position: absolute;
-  left: 50%;
   bottom: 0.2rem;
+  left: 50%;
   width: 26px;
   height: 3px;
   border-radius: 999px;
-  background: #0d6efd;
+  background: #0878ff;
+  content: "";
   transform: translateX(-50%);
 }
 
@@ -162,47 +182,48 @@
 .btn-login,
 .btn-primary-cta {
   min-height: 42px;
-  border-radius: 10px;
   padding: 0.65rem 1.05rem;
-  font-size: 0.92rem;
-  font-weight: 700;
+  border-radius: 11px;
+  font-size: 0.9rem;
+  font-weight: 750;
   box-shadow: none;
 }
 
 .btn-login {
-  color: rgba(255, 255, 255, 0.86);
-  border: 1px solid rgba(255, 255, 255, 0.16);
-  background: rgba(255, 255, 255, 0.06);
+  border: 1px solid rgba(255, 255, 255, 0.38);
+  color: rgba(255, 255, 255, 0.9);
+  background: transparent;
 }
 
 .btn-login:hover {
-  color: #ffffff;
-  background: rgba(255, 255, 255, 0.12);
-  border-color: rgba(255, 255, 255, 0.26);
+  border-color: rgba(255, 255, 255, 0.62);
+  color: #fff;
+  background: rgba(255, 255, 255, 0.09);
 }
 
 .btn-primary-cta {
-  color: #ffffff;
-  border: 1px solid #0d6efd;
-  background: #0d6efd;
+  border: 1px solid #0878ff;
+  color: #fff;
+  background: #0878ff;
+  box-shadow: 0 10px 22px rgba(8, 120, 255, 0.24);
 }
 
 .btn-primary-cta:hover {
-  color: #ffffff;
-  border-color: #0b5ed7;
-  background: #0b5ed7;
+  border-color: #0062d8;
+  color: #fff;
+  background: #0062d8;
 }
 
 .custom-toggler {
+  display: none;
   width: 42px;
   height: 42px;
-  border: 1px solid rgba(255, 255, 255, 0.18);
-  border-radius: 12px;
-  color: #ffffff;
-  background: rgba(255, 255, 255, 0.08);
-  display: inline-flex;
   align-items: center;
   justify-content: center;
+  border: 1px solid rgba(255, 255, 255, 0.18);
+  border-radius: 12px;
+  color: #fff;
+  background: rgba(255, 255, 255, 0.08);
   box-shadow: none;
 }
 
@@ -216,34 +237,48 @@
 
 @media (max-width: 991.98px) {
   .landing-navbar {
-    background: #061833;
+    background: #021634;
   }
 
   .navbar-collapse {
+    width: 100%;
     padding: 1rem 0 0.25rem;
   }
 
+  .custom-toggler {
+    display: inline-flex;
+  }
+
   .nav-links {
-    gap: 0.35rem;
+    width: calc(100% - 1rem);
+    margin-right: 0.5rem;
+    margin-left: 0.5rem;
+  }
+
+  .nav-item,
+  .nav-link {
+    width: 100%;
   }
 
   .nav-link {
-    border-radius: 12px;
     padding: 0.85rem 1rem !important;
+    border-radius: 12px;
+  }
+
+  .nav-link.active {
+    background: rgba(8, 120, 255, 0.18);
   }
 
   .nav-link.active::after {
     display: none;
   }
 
-  .nav-link.active {
-    background: rgba(13, 110, 253, 0.18);
-  }
-
   .navbar-actions {
     display: grid;
     grid-template-columns: 1fr;
-    width: 100%;
+    width: calc(100% - 1rem);
+    margin-right: 0.5rem;
+    margin-left: 0.5rem;
   }
 
   .btn-login,
@@ -253,14 +288,17 @@
 }
 
 @media (max-width: 575.98px) {
-  .brand-logo-box {
-    max-width: 185px;
-    height: 44px;
+  .custom-toggler {
+    margin-right: 0.5rem;
   }
 
+  .brand-logo-box,
   .brand-logo-img {
-    max-width: 160px;
-    height: 30px;
+    width: 152px;
+  }
+
+  .brand-logo-box {
+    height: 42px;
   }
 }
 </style>

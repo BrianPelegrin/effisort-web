@@ -33,6 +33,37 @@ export interface LoginResponse {
   token: string;
 }
 
+/** Respuesta de GET /api/auth/perfil. */
+export interface UsuarioPerfil {
+  id: string;
+  userName: string | null;
+  email: string | null;
+  phoneNumber: string | null;
+  empresa: EmpresaPerfil;
+}
+
+/** Subconjunto seguro de Empresa incluido en el perfil autenticado. */
+export interface EmpresaPerfil {
+  tenantId: Guid;
+  nombreRazonSocial: string | null;
+  nombreComercial: string | null;
+  sucursal: string | null;
+  rnc: string | null;
+  direccion: string | null;
+  telefono: string | null;
+  telefono2: string | null;
+  municipioId: string | null;
+  provinciaId: string | null;
+  correo: string | null;
+  webSite: string | null;
+  actividadEconomica: string | null;
+}
+
+/** Errores JSON propios de GET /api/auth/perfil. */
+export interface ApiMensajeResponse {
+  mensaje: string;
+}
+
 /**
  * El registro se envía como FormData, no como JSON.
  * Los nombres de las propiedades deben convertirse a PascalCase en FormData.
@@ -369,8 +400,11 @@ export interface DocumentoFiscal {
 }
 
 export interface DocumentoFiscalSearchParams {
+  /** Normalmente debe omitirse: search aplica el tenant del usuario. */
   tenantId?: string;
   encfTipo?: string;
+  /** Coincidencia parcial (Contains), no igualdad exacta. */
+  encf?: string;
   rncEmisor?: string;
   rncComprador?: string;
   idExtranjero?: string;
@@ -398,8 +432,9 @@ export interface EcfRequest {
 }
 
 export interface Ecf {
-  encabezado?: Encabezado;
-  detallesItems?: DetallesItems;
+  /** Secciones mínimas para que documentofiscal pueda procesar el body. */
+  encabezado: Encabezado;
+  detallesItems: DetallesItems;
   subtotales?: Subtotales;
   descuentosORecargos?: DescuentosORecargos;
   paginacion?: Paginacion;
@@ -408,13 +443,13 @@ export interface Ecf {
 }
 
 export interface Encabezado {
-  version?: string;
-  idDoc?: IdDoc;
-  emisor?: Emisor;
+  version: string;
+  idDoc: IdDoc;
+  emisor: Emisor;
   comprador?: Comprador;
   informacionesAdicionales?: InformacionesAdicionales;
   transporte?: Transporte;
-  totales?: Totales;
+  totales: Totales;
   otraMoneda?: OtraMoneda;
 }
 
@@ -467,7 +502,8 @@ export interface Emisor {
   zonaVenta?: string;
   rutaVenta?: string;
   informacionAdicionalEmisor?: string;
-  fechaEmision?: string;
+  /** Formato fiscal usado por el backend: dd-MM-yyyy. */
+  fechaEmision: string;
 }
 
 export interface Comprador {
@@ -549,7 +585,7 @@ export interface Totales {
   totalITBIS3?: number;
   montoImpuestoAdicional?: number;
   impuestosAdicionales?: ImpuestosAdicionales;
-  montoTotal?: number;
+  montoTotal: number;
   montoNoFacturable?: number;
   montoPeriodo?: number;
   saldoAnterior?: number;
@@ -746,6 +782,44 @@ export interface InformacionReferencia {
   fechaNCFModificado?: string;
   codigoModificacion?: number;
   razonModificacion?: string;
+}
+
+/**
+ * Contrato JSON literal devuelto por POST /api/ecf/documentofiscal.
+ * Es PascalCase porque el controlador llama directamente a Newtonsoft.Json;
+ * la política camelCase global de ASP.NET Core no se aplica a esta respuesta.
+ */
+export interface FacturacionApiResponse {
+  Encf: string | null;
+  FechaEmision: string | null;
+  FechaVencimientoSecuencia: string | null;
+  FechaFirma: string | null;
+  CodigoSeguridad: string | null;
+  EstadoEncf: string | null;
+  SecuenciaUtilizada: boolean;
+  UrlVerificacionDGII: string | null;
+  UrlDocumentoPdf: string | null;
+  Mensajes: FacturacionMensajesResponse | null;
+  DocumentoB64: string | null;
+}
+
+export interface FacturacionMensajesResponse {
+  Mensaje: string[] | null;
+}
+
+/** Modelo camelCase recomendado para el estado de la UI. */
+export interface EcfApiResult {
+  encf: string | null;
+  fechaEmision: string | null;
+  fechaVencimientoSecuencia: string | null;
+  fechaFirma: string | null;
+  codigoSeguridad: string | null;
+  estadoEncf: string | null;
+  secuenciaUtilizada: boolean;
+  urlVerificacionDGII: string | null;
+  urlDocumentoPdf: string | null;
+  mensajes: string[];
+  documentoB64: string | null;
 }
 
 export interface AcEcfEmisionRequest {

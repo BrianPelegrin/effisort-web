@@ -1,0 +1,80 @@
+{
+  "ecf": {
+    "encabezado": {
+      "version": "1.0",
+      "idDoc": {
+        "tipoeCF": "31",
+        "indicadorMontoGravado": 0,
+        "tipoIngresos": "01",
+        "tipoPago": 1,
+        "tablaFormasPago": {
+          "formaDePago": [
+            {
+              "formaPago": 1,
+              "montoPago": 1180.0
+            }
+          ]
+        }
+      },
+      "emisor": {
+        "rncEmisor": "101234567",
+        "razonSocialEmisor": "EMPRESA EJEMPLO SRL",
+        "nombreComercial": "EMPRESA EJEMPLO",
+        "direccionEmisor": "AV. EJEMPLO NO. 123, SANTO DOMINGO",
+        "municipio": "010100",
+        "provincia": "010000",
+        "tablaTelefonoEmisor": {
+          "telefonoEmisor": [
+            "809-555-0100"
+          ]
+        },
+        "correoEmisor": "facturacion@empresa-ejemplo.com",
+        "actividadEconomica": "SERVICIOS DE CONSULTORIA",
+        "numeroFacturaInterna": "WEB-2026-000001",
+        "fechaEmision": "07-08-2026"
+      },
+      "comprador": {
+        "rncComprador": "131234567",
+        "razonSocialComprador": "CLIENTE EJEMPLO SRL",
+        "contactoComprador": "MARIA PEREZ",
+        "correoComprador": "compras@cliente-ejemplo.com",
+        "direccionComprador": "CALLE CLIENTE NO. 45, SANTO DOMINGO",
+        "municipioComprador": "010100",
+        "provinciaComprador": "010000",
+        "codigoInternoComprador": "CLI-0001"
+      },
+      "totales": {
+        "montoGravadoTotal": 1000.0,
+        "montoGravadoI1": 1000.0,
+        "itbiS1": 18,
+        "totalITBIS": 180.0,
+        "totalITBIS1": 180.0,
+        "montoTotal": 1180.0,
+        "valorPagar": 1180.0
+      }
+    },
+    "detallesItems": {
+      "item": [
+        {
+          "numeroLinea": 1,
+          "tablaCodigosItem": {
+            "codigosItem": [
+              {
+                "tipoCodigo": "Interno",
+                "codigoItem": "SERV-0001"
+              }
+            ]
+          },
+          "indicadorFacturacion": 1,
+          "nombreItem": "SERVICIO DE CONSULTORIA",
+          "indicadorBienoServicio": 2,
+          "descripcionItem": "SERVICIO PROFESIONAL CORRESPONDIENTE A AGOSTO 2026",
+          "cantidadItem": 1.0,
+          "unidadMedida": 43,
+          "precioUnitarioItem": 1000.0,
+          "montoItem": 1000.0
+        }
+      ]
+    }
+  }
+}

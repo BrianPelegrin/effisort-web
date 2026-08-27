@@ -1,0 +1,13 @@
+{
+  "Encf": "E310000000001",
+  "FechaEmision": "07-08-2026",
+  "FechaVencimientoSecuencia": "31-12-2028",
+  "FechaFirma": "07-08-2026 14:35:20",
+  "CodigoSeguridad": "ABC123",
+  "EstadoEncf": "Aceptado (1)",
+  "SecuenciaUtilizada": true,
+  "UrlVerificacionDGII": "https://ejemplo.dgii.gov.do/consulta?...",
+  "UrlDocumentoPdf": "E310000000001.pdf",
+  "Mensajes": null,
+  "DocumentoB64": null
+}

@@ -13,6 +13,11 @@ Content-Type: application/json
   "password": "Secreto123"
 }
 
+### Perfil del usuario y empresa autenticados
+GET {{baseUrl}}/api/auth/perfil
+Authorization: Bearer {{token}}
+Accept: application/json
+
 ### Registro multipart sin archivos opcionales
 POST {{baseUrl}}/api/auth/register
 Content-Type: multipart/form-data; boundary=OceanOneBoundary
@@ -180,17 +185,17 @@ Authorization: Bearer {{token}}
 ### Catálogo de indicadores de facturación
 GET {{baseUrl}}/api/indicadoresfacturacion
 
-### Buscar documentos fiscales
-GET {{baseUrl}}/api/documentosfiscales/search?pageNumber=1&pageSize=10
+### Buscar documentos fiscales del tenant autenticado, opcionalmente por e-NCF
+GET {{baseUrl}}/api/documentosfiscales/search?encf=E310000000001&pageNumber=1&pageSize=10
 Authorization: Bearer {{token}}
 
 ### Emitir e-CF desde JSON
 POST {{baseUrl}}/api/ecf/documentofiscal
 Authorization: Bearer {{token}}
 Content-Type: application/json
-Accept: text/xml
+Accept: application/json
 
-< ./ecf-documento.json
+< ./facturacion-e31.json
 
 ### Consultar TrackId
 POST {{baseUrl}}/api/ecf/consultartrackid?trackId=REEMPLAZAR_TRACK_ID

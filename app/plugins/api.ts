@@ -1,48 +1,48 @@
-export default defineNuxtPlugin(() => {
-  const config = useRuntimeConfig()
-  const auth = useAuthStore()
+import { ApiError, createApiClient, type ApiRequestOptions } from '~/utils/api'
 
-  async function clearExpiredSession() {
-    auth.clearSession()
-    await navigateTo('/auth/login')
-  }
+export default defineNuxtPlugin({
+  name: 'api',
+  setup() {
+    const config = useRuntimeConfig()
+    const auth = useAuthStore()
 
-  const api = $fetch.create({
-    baseURL: config.public.apiBase,
-    headers: {
-      Accept: 'application/json',
-    },
-    async onRequest({ request, options }) {
+    async function clearExpiredSession() {
+      auth.clearSession()
+      await navigateTo('/auth/login')
+    }
+
+    const request = createApiClient({
+      baseURL: String(config.public.apiBase),
+      getToken: () => auth.token,
+      defaultTimeoutMs: 30_000,
+      async onUnauthorized(path) {
+        const isLoginRequest = path.includes('/api/auth/login')
+        if (!isLoginRequest && auth.token) await clearExpiredSession()
+      },
+    })
+
+    async function api<T>(path: string, options: ApiRequestOptions = {}) {
       if (!auth.isInitialized && import.meta.client) auth.initFromStorage()
 
-      const isAuthRequest = String(request).includes('/api/auth/')
-
-      if (!isAuthRequest && auth.token && !auth.isAuthenticated) {
+      const publicAuthPaths = [
+        '/api/auth/login',
+        '/api/auth/register',
+        '/api/auth/forgot-password',
+        '/api/auth/reset-password',
+      ]
+      const isPublicAuthRequest = publicAuthPaths.some(publicPath => path.startsWith(publicPath))
+      if (!isPublicAuthRequest && auth.token && !auth.isAuthenticated) {
         await clearExpiredSession()
-        throw createError({
-          statusCode: 401,
-          statusMessage: 'La sesión venció o dejó de ser válida.',
-        })
+        throw new ApiError(401, 'La sesión venció o dejó de ser válida.', 'text/plain')
       }
 
-      if (auth.token) {
-        const headers = new Headers(options.headers)
-        headers.set('Authorization', `Bearer ${auth.token}`)
-        options.headers = headers
-      }
-    },
-    async onResponseError({ request, response }) {
-      const isLoginRequest = String(request).includes('/api/auth/login')
+      return request<T>(path, options)
+    }
 
-      if (response.status === 401 && !isLoginRequest && auth.token) {
-        await clearExpiredSession()
-      }
-    },
-  })
-
-  return {
-    provide: {
-      api,
-    },
-  }
+    return {
+      provide: {
+        api,
+      },
+    }
+  },
 })

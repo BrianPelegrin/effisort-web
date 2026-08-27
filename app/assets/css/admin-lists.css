@@ -1,0 +1,25 @@
+.paginated-table-viewport {
+  height: clamp(26rem, 58vh, 42rem);
+  overflow: auto;
+  overscroll-behavior: contain;
+  scrollbar-gutter: stable;
+}
+
+.paginated-table-viewport > .table {
+  margin-bottom: 0;
+}
+
+.paginated-table-viewport > .table > thead > tr > th {
+  position: sticky;
+  z-index: 2;
+  top: 0;
+  background: var(--bs-tertiary-bg, #f8f9fa);
+  box-shadow: inset 0 -1px 0 var(--bs-border-color, #dee2e6);
+}
+
+@media (max-width: 575.98px) {
+  .paginated-table-viewport {
+    height: 60vh;
+    min-height: 22rem;
+  }
+}

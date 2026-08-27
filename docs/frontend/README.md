@@ -1,14 +1,17 @@
 # Guía de integración WebAPI → Frontend
 
-Documento actualizado a partir del código vigente del repositorio el **2 de agosto de 2026**. Esta es la fuente de verdad para que Codex implemente el frontend de OceanOne/Effisort.
+Documento rehecho y verificado contra el código vigente del proyecto **EffisortEmisionEcf** el **10 de agosto de 2026** (`7755091`). Esta es la fuente de verdad para que Codex implemente el frontend; no usar contratos tomados de otros proyectos WebAPI.
 
 Archivos complementarios:
 
 - [`api-types.ts`](./api-types.ts): contratos TypeScript reutilizables.
 - [`examples/login.json`](./examples/login.json): login.
+- [`examples/perfil-respuesta.json`](./examples/perfil-respuesta.json): usuario y empresa autenticados.
 - [`examples/cliente.json`](./examples/cliente.json): alta/edición de cliente.
 - [`examples/articulo.json`](./examples/articulo.json): alta/edición de artículo.
-- [`examples/ecf-documento.json`](./examples/ecf-documento.json): estructura JSON de emisión e-CF.
+- [`examples/ecf-documento.json`](./examples/ecf-documento.json): estructura JSON compacta de emisión e-CF.
+- [`examples/facturacion-e31.json`](./examples/facturacion-e31.json): petición completa recomendada para facturación E31.
+- [`examples/facturacion-respuesta.json`](./examples/facturacion-respuesta.json): respuesta JSON exitosa de facturación.
 - [`examples/requests.http`](./examples/requests.http): llamadas ejecutables con REST Client.
 
 ## 1. Reglas globales
@@ -18,8 +21,9 @@ Archivos complementarios:
 | Base URL local HTTP | `http://localhost:5203` |
 | Base URL local HTTPS | `https://localhost:7253` |
 | Prefijo | `/api` |
-| Swagger | `/swagger`, únicamente en `Development` |
-| JSON | `camelCase` con `System.Text.Json` |
+| Swagger | `/swagger`, habilitado actualmente en todos los ambientes |
+| JSON general | `camelCase` con `System.Text.Json` |
+| Excepción de facturación | `/api/ecf/documentofiscal` responde JSON `PascalCase` serializado con Newtonsoft.Json |
 | Autenticación | JWT Bearer |
 | Vida del JWT | 2 horas |
 | Tenant | Claim JWT `Tenant_ID` |
@@ -36,7 +40,8 @@ La API no tiene un sobre uniforme:
 - `ProblemDetails` JSON en conflictos de clientes/artículos.
 - `ValidationProblemDetails` JSON en validaciones automáticas.
 - Texto plano en muchos éxitos y errores.
-- XML en procesos e-CF.
+- JSON `PascalCase` en la emisión `/api/ecf/documentofiscal`.
+- XML en consulta de TrackId, recepción e-CF y otros procesos XML.
 - Base64 como texto para descarga de PDF.
 - Cuerpo vacío en `204`, algunos `200`, `401`, `403` y `404`.
 
@@ -66,10 +71,10 @@ Existen cuatro niveles efectivos:
 
 | Nivel | Rutas |
 |---|---|
-| Público explícito | Auth, catálogos y endpoints de roles |
+| Público explícito | Auth excepto `/perfil`, catálogos y endpoints de roles |
 | JWT, cualquier usuario | Clientes, artículos, documentos fiscales y TokenInspector |
 | JWT + rol exacto `SUPERADMIN` | Sólo `GET /api/empresas` |
-| JWT efectivo por comprobación manual | `/api/ecf/*`, aunque el controlador no declare `[Authorize]` |
+| JWT efectivo por comprobación manual | `/api/auth/perfil` y `/api/ecf/*`, aunque no declaren `[Authorize]` |
 | Público por falta de atributo | Empresa por ID/RNC y administración de roles |
 
 Header:
@@ -109,6 +114,7 @@ Codex debe implementar esas operaciones normalmente, pero documentar el bloqueo 
 | Método | Ruta | Seguridad | Entrada | Salida principal |
 |---|---|---|---|---|
 | POST | `/api/auth/login` | Pública | JSON | `{ token }` |
+| GET | `/api/auth/perfil` | JWT efectivo | Sin body | Usuario y empresa en JSON |
 | POST | `/api/auth/register` | Pública | `multipart/form-data` | Contrato inestable: el controlador devuelve `Ok(Task)` |
 | POST | `/api/auth/forgot-password` | Pública | JSON | Texto |
 | POST | `/api/auth/reset-password` | Pública | JSON | Texto |
@@ -180,16 +186,16 @@ Todas requieren JWT y se filtran por el tenant del token.
 | GET | `/api/empresas` | Rol `SUPERADMIN` |
 | GET | `/api/empresas/{id}` | Pública actualmente |
 | GET | `/api/empresas/rnc/{rnc}` | Pública actualmente |
-| GET | `/api/documentosfiscales/search` | JWT |
-| GET | `/api/documentosfiscales` | JWT |
-| GET | `/api/documentosfiscales/{id}` | JWT |
-| GET | `/api/documentosfiscales/comprador/{rnc}` | JWT |
+| GET | `/api/documentosfiscales/search` | JWT + tenant automático |
+| GET | `/api/documentosfiscales` | JWT; consulta global actualmente |
+| GET | `/api/documentosfiscales/{id}` | JWT; consulta global actualmente |
+| GET | `/api/documentosfiscales/comprador/{rnc}` | JWT; consulta global actualmente |
 
 ### 2.7 e-CF
 
 | Método | Ruta | Entrada/salida |
 |---|---|---|
-| POST | `/api/ecf/documentofiscal` | JSON → XML |
+| POST | `/api/ecf/documentofiscal` | JSON `camelCase` → JSON `PascalCase` (`ApiResult`) |
 | POST | `/api/ecf/consultartrackid?trackId=...` | Query → XML |
 | GET | `/api/ecf/downloads/{numero}` | Base64 texto |
 | POST | `/api/ecf/ecf` | XML multipart → XML ARECF |
@@ -255,9 +261,65 @@ o:
 Credenciales inválidas
 ```
 
-El frontend debe descartar sesiones cuyo JWT no tenga `Tenant_ID`, porque clientes, artículos y e-CF dependen de él.
+El frontend debe descartar sesiones cuyo JWT no tenga `Tenant_ID`, porque clientes, artículos y e-CF dependen de él. Después del login debe consultar el perfil para cargar el usuario y la empresa vigente.
 
-### 3.2 Registro
+### 3.2 Perfil autenticado
+
+`GET /api/auth/perfil`
+
+```http
+GET /api/auth/perfil
+Authorization: Bearer <token>
+Accept: application/json
+```
+
+No recibe body ni parámetros. En éxito devuelve `200 application/json` en camelCase:
+
+```json
+{
+  "id": "c88c7491-9875-4bc2-8977-23c932b98242",
+  "userName": "oceanadmin",
+  "email": "admin@empresa.com",
+  "phoneNumber": "8095550101",
+  "empresa": {
+    "tenantId": "8ec759e0-0658-4be7-84e2-390658d90f85",
+    "nombreRazonSocial": "EMPRESA EJEMPLO SRL",
+    "nombreComercial": "EMPRESA EJEMPLO",
+    "sucursal": null,
+    "rnc": "101234567",
+    "direccion": "AV. EJEMPLO NO. 123, SANTO DOMINGO",
+    "telefono": "8095550100",
+    "telefono2": null,
+    "municipioId": "010100",
+    "provinciaId": "010000",
+    "correo": "facturacion@empresa-ejemplo.com",
+    "webSite": null,
+    "actividadEconomica": "SERVICIOS DE CONSULTORIA"
+  }
+}
+```
+
+Este es el endpoint que debe utilizar el frontend para conocer la empresa del usuario autenticado. Devuelve un subconjunto seguro de la empresa y no expone certificado, contraseña de certificado, credenciales SMTP ni otras configuraciones internas.
+
+Seguridad efectiva: la acción no tiene `[Authorize]`, pero intenta resolver al usuario desde los claims mediante `UserManager`. Sin una identidad válida devuelve:
+
+```json
+{ "mensaje": "Usuario no autenticado" }
+```
+
+con estado `401`. Si no localiza el usuario o su empresa, devuelve `404` JSON con `{ "mensaje": "Usuario no encontrado" }` o `{ "mensaje": "Empresa no encontrado" }`.
+
+Las propiedades string del DTO no están declaradas como nullable, pero varias fuentes de Identity/Empresa sí pueden contener `null`; los tipos frontend las modelan como `string | null`.
+
+Flujo recomendado:
+
+1. Guardar el JWT después de `POST /api/auth/login`.
+2. Ejecutar una sola vez `GET /api/auth/perfil` al iniciar/restaurar la sesión.
+3. Guardar `UsuarioPerfil` en el store de sesión.
+4. Usar `perfil.empresa` como fuente para los datos base del emisor y para mostrar la organización activa.
+5. En `401`, invalidar la sesión; en `404`, mantener la sesión sólo para mostrar un error de configuración y bloquear la facturación.
+
+### 3.3 Registro
 
 `POST /api/auth/register`
 
@@ -335,7 +397,7 @@ Errores frecuentes `400` texto:
 
 El registro no devuelve JWT. Después de `200`, navegar al login.
 
-### 3.3 Recuperación
+### 3.4 Recuperación
 
 `POST /api/auth/forgot-password`
 
@@ -630,6 +692,8 @@ Si el controlador se reactiva sin otros cambios, quedarían públicas porque su 
 
 ## 8. Empresas
 
+Para obtener la empresa activa del usuario normal se debe usar `GET /api/auth/perfil`. Esa respuesta toma la empresa asociada al tenant del usuario y excluye secretos. Las rutas `/api/empresas` siguientes quedan como consultas administrativas o heredadas.
+
 Los permisos actuales son distintos por acción:
 
 - `GET /api/empresas`: exige rol exacto `SUPERADMIN`; devuelve todas las empresas sin tenant filter.
@@ -642,7 +706,7 @@ La respuesta contiene configuración sensible, incluyendo `passwordCertificado` 
 
 ## 9. Documentos fiscales
 
-Requieren cualquier JWT válido y actualmente consultan globalmente, sin filtro automático del tenant del JWT.
+Todas las rutas requieren JWT. El aislamiento por tenant ahora es distinto según la acción: `search` sí aplica el tenant del usuario autenticado cuando `ApplicationUser.TenantId` tiene valor; las otras tres consultas continúan siendo globales.
 
 ### 9.1 Búsqueda
 
@@ -650,8 +714,9 @@ Requieren cualquier JWT válido y actualmente consultan globalmente, sin filtro 
 
 Query opcional:
 
-- `tenantId`
+- `tenantId` (redundante para un usuario normal; no enviarlo)
 - `encfTipo`
+- `encf`
 - `rncEmisor`
 - `rncComprador`
 - `idExtranjero`
@@ -661,7 +726,14 @@ Query opcional:
 - `pageNumber` default 1
 - `pageSize` default 10, máximo 25
 
-Los filtros usan `Contains`. No hay orden definido.
+Primero se filtra por el `TenantId` del usuario y después se aplican los parámetros. Por tanto, un `tenantId` distinto no permite consultar otro tenant: produce cero resultados. Todos los filtros de texto, incluido `encf`, usan `Contains`; no hay orden definido.
+
+Ejemplo para localizar un comprobante dentro de la empresa autenticada:
+
+```http
+GET /api/documentosfiscales/search?encf=E310000000001&pageNumber=1&pageSize=10
+Authorization: Bearer <token>
+```
 
 ```json
 {
@@ -675,11 +747,15 @@ Los filtros usan `Contains`. No hay orden definido.
 
 No enviar página/tamaño menores de 1.
 
+La protección depende de que el usuario de Identity tenga `TenantId`. El frontend ya debe rechazar una sesión cuyo token traiga `Tenant_ID` vacío o ausente; una cuenta autenticada sin asociación de tenant podría provocar una búsqueda global por el comportamiento actual del controlador.
+
 ### 9.2 Otras consultas
 
-- `GET /api/documentosfiscales`: todo, sin paginar.
-- `GET /api/documentosfiscales/{id}`: ID entero.
-- `GET /api/documentosfiscales/comprador/{rnc}`: `404` si no hay filas, no `[]`.
+- `GET /api/documentosfiscales`: todo, sin paginar y **sin filtro de tenant**.
+- `GET /api/documentosfiscales/{id}`: ID entero y **sin filtro de tenant**.
+- `GET /api/documentosfiscales/comprador/{rnc}`: sin filtro de tenant; devuelve `404` si no hay filas, no `[]`.
+
+Para la bandeja y las verificaciones de facturación, usar preferentemente `search`. No presentar las otras rutas como consultas seguras de la empresa hasta que el backend les aplique el mismo aislamiento.
 
 Varias fechas del documento son strings no normalizados. Sólo `createdAt` y `updatedAt` son timestamps JSON.
 
@@ -695,38 +771,316 @@ Tratar todas las rutas `/api/ecf/*` como JWT. Sin token responden `401` con el t
 
 `POST /api/ecf/documentofiscal`
 
-Body completo: `EcfRequest` en `api-types.ts`. Ejemplo estructural: `examples/ecf-documento.json`.
+Este es el endpoint de facturación que debe usar el frontend. Recibe el documento fiscal completo como JSON y, en el código actual, devuelve **JSON**, no XML. El contrato de entrada es `EcfRequest`, la respuesta literal es `FacturacionApiResponse` y el modelo normalizado para la UI es `EcfApiResult`, todos disponibles en [`api-types.ts`](./api-types.ts).
 
-Propiedades mínimas del modelo C#:
+Ejemplos:
 
-- `ecf`
-- `ecf.encabezado.idDoc.tipoeCF`
-- Emisor: `rncEmisor`, `razonSocialEmisor`, `direccionEmisor`
-- `detallesItems.item`
-- Por línea: `numeroLinea`, `indicadorFacturacion`, `nombreItem`, `indicadorBienoServicio`
+- [`examples/facturacion-e31.json`](./examples/facturacion-e31.json): petición E31 recomendada.
+- [`examples/facturacion-respuesta.json`](./examples/facturacion-respuesta.json): respuesta exitosa.
+- [`examples/ecf-documento.json`](./examples/ecf-documento.json): petición compacta heredada.
 
-El XSD fiscal puede exigir más campos según el tipo. El ejemplo es de integración, no certifica cumplimiento DGII.
+#### 10.2.1 Petición HTTP
 
-Si `eNCF` viene vacío o se omite, el servidor asigna secuencia y vencimiento.
+```http
+POST /api/ecf/documentofiscal
+Authorization: Bearer <jwt>
+Content-Type: application/json
+Accept: application/json
 
-Éxito: `200 text/xml`.
-
-```xml
-<ApiResult>
-  <Encf>E310000000001</Encf>
-  <FechaEmision>26-07-2026</FechaEmision>
-  <FechaVencimientoSecuencia>31-12-2028</FechaVencimientoSecuencia>
-  <FechaFirma>...</FechaFirma>
-  <CodigoSeguridad>...</CodigoSeguridad>
-  <EstadoEncf>Aceptado</EstadoEncf>
-  <SecuenciaUtilizada>true</SecuenciaUtilizada>
-  <UrlVerificacionDGII>...</UrlVerificacionDGII>
-  <UrlDocumentoPdf>...</UrlDocumentoPdf>
-  <Mensajes><Mensaje>...</Mensaje></Mensajes>
-</ApiResult>
+{ "ecf": { ... } }
 ```
 
-Las URLs pueden ser el literal `None`. Errores: principalmente `400` texto; excepciones no controladas pueden ser `500`.
+- El JWT debe ser válido y aportar un `Tenant_ID` utilizable.
+- El body no recibe `tenantId`, `userId`, `trackId` ni archivos.
+- Usar los nombres JSON como están en los ejemplos. Los casos fáciles de escribir mal son `tipoeCF`, `eNCF`, `itbiS1` y `totalITBIS`.
+- Enviar cantidades e importes como números JSON, nunca como strings con moneda o separadores de miles.
+- Las fechas fiscales que consume este flujo usan `dd-MM-yyyy`.
+- Omitir campos opcionales sin valor; no llenar indiscriminadamente el objeto con `null` o strings vacíos porque el servidor lo convierte a XML y lo valida contra el XSD.
+
+Aunque el backend tiene formatters XML habilitados y Swagger enumera también media types XML para el body, el contrato de integración de esta ruta es petición JSON y respuesta JSON. Como la acción retorna `IActionResult` sin metadatos `ProducesResponseType`, Swagger sólo lista `200` y no describe la forma real de `ApiResult`; para esta respuesta prevalecen el controlador y `FacturacionApiResponse`.
+
+#### 10.2.2 Prerrequisitos
+
+La operación depende de recursos que no vienen en el body:
+
+| Requisito | Responsable | Resultado si falta o es inválido |
+|---|---|---|
+| JWT con `Tenant_ID` | Frontend/sesión | `401` texto |
+| Datos fiscales completos del emisor | Aplicación/configuración | Error de estructura, XSD o procesamiento |
+| Secuencia activa para el tipo, por ejemplo `E31` | Backend/operaciones | Error al asignar e-NCF |
+| XSD configurado como `XSD_E31`, `XSD_E32`, etc. | Backend/operaciones | `400` con error de validación |
+| Certificado digital en la carpeta del tenant | Backend/operaciones | `400` texto |
+| Certificado, contraseña y firma válidos | Backend/operaciones | `400` o `500` |
+| URLs, credenciales y ambiente DGII | Backend/operaciones | Fallo de envío o consulta |
+| Tablas y procedimientos fiscales instalados | Backend/operaciones | `400` o `500` durante persistencia |
+
+`GET /api/auth/perfil` entrega ahora los datos base del emisor asociados al usuario: RNC, razón social, nombre comercial, dirección, municipio, provincia, teléfonos, correo y actividad económica. No entrega certificado, secuencias, ambiente DGII ni las demás configuraciones internas, que siguen siendo responsabilidad del backend. El frontend no debe inventar ni permitir alterar silenciosamente la identidad fiscal del emisor.
+
+#### 10.2.3 Datos que debe cargar el frontend
+
+Antes de construir una factura:
+
+1. Consultar `GET /api/auth/perfil` y tomar `empresa` como identidad base del emisor.
+2. Consultar `GET /api/clientes` para seleccionar el comprador.
+3. Consultar `GET /api/articulos` para crear las líneas.
+4. Cargar al menos `/api/tiposcomprobantes`, `/api/indicadoresfacturacion`, `/api/medidas`, `/api/tiposingresos`, `/api/tipospagos` y `/api/formaspago`.
+5. Mantener el documento como borrador local hasta que las validaciones y totales coincidan.
+
+No enviar un objeto `Cliente` o `Articulo` directamente. Debe mapearse así:
+
+| Origen | Destino en `EcfRequest` |
+|---|---|
+| `perfil.empresa.rnc` | `ecf.encabezado.emisor.rncEmisor` |
+| `perfil.empresa.nombreRazonSocial` | `ecf.encabezado.emisor.razonSocialEmisor` |
+| `perfil.empresa.nombreComercial` | `ecf.encabezado.emisor.nombreComercial` |
+| `perfil.empresa.direccion` | `ecf.encabezado.emisor.direccionEmisor` |
+| `perfil.empresa.municipioId` | `ecf.encabezado.emisor.municipio` |
+| `perfil.empresa.provinciaId` | `ecf.encabezado.emisor.provincia` |
+| Teléfonos no nulos de `perfil.empresa` | `ecf.encabezado.emisor.tablaTelefonoEmisor.telefonoEmisor[]` |
+| `perfil.empresa.correo` | `ecf.encabezado.emisor.correoEmisor` |
+| `perfil.empresa.actividadEconomica` | `ecf.encabezado.emisor.actividadEconomica` |
+| `cliente.rncComprador` | `ecf.encabezado.comprador.rncComprador` |
+| `cliente.identificadorExtranjero` | `ecf.encabezado.comprador.identificadorExtranjero` |
+| `cliente.razonSocialComprador` | `ecf.encabezado.comprador.razonSocialComprador` |
+| Contacto y dirección del cliente | Propiedades homónimas de `comprador` |
+| `articulo.codigo` | `item[].tablaCodigosItem.codigosItem[].codigoItem` |
+| `articulo.tipoCodigo` | `item[].tablaCodigosItem.codigosItem[].tipoCodigo` |
+| `articulo.indicadorFacturacion` | `item[].indicadorFacturacion` |
+| `articulo.nombreItem` | `item[].nombreItem` |
+| `articulo.indicadorBienoServicio` | `item[].indicadorBienoServicio` |
+| `articulo.descripcionItem` | `item[].descripcionItem` |
+| `articulo.unidadMedida` | `item[].unidadMedida` |
+| Precio seleccionado | `item[].precioUnitarioItem` |
+| Cantidad ingresada | `item[].cantidadItem` |
+| Cantidad × precio, con ajustes | `item[].montoItem` |
+
+`existencia`, `activo`, IDs internos y `tenantId` no forman parte de una línea e-CF.
+
+Si `rnc`, `nombreRazonSocial` o `direccion` llegan nulos en el perfil, bloquear la emisión y reportar configuración incompleta; son obligatorios en `Emisor`. Omitir `tablaTelefonoEmisor` si ambos teléfonos son nulos, en vez de enviar un arreglo con valores vacíos.
+
+#### 10.2.4 Tipo de comprobante
+
+En `tipoeCF` se envían sólo los dos dígitos, sin la letra `E`:
+
+| `tipoeCF` | Secuencia resultante | Uso habitual |
+|---:|---|---|
+| `31` | `E31##########` | Factura de crédito fiscal |
+| `32` | `E32##########` | Factura de consumo |
+| `33` | `E33##########` | Nota de débito |
+| `34` | `E34##########` | Nota de crédito |
+| `41` | `E41##########` | Compras |
+| `43` | `E43##########` | Gastos menores |
+| `44` | `E44##########` | Regímenes especiales |
+| `45` | `E45##########` | Gubernamental |
+| `46` | `E46##########` | Exportaciones |
+| `47` | `E47##########` | Pagos al exterior |
+
+La forma fiscal exacta cambia por tipo. El ejemplo nuevo cubre E31; E33/E34 requieren completar `informacionReferencia`, y otros comprobantes pueden exigir comprador, transporte, moneda u otros campos. El XSD configurado en el backend es la validación definitiva.
+
+Los RNC, códigos, direcciones, secuencia y URLs de los ejemplos son ilustrativos. Deben sustituirse por datos y valores de catálogo válidos para el tenant; el ejemplo facilita la integración técnica, pero por sí solo no certifica cumplimiento ante DGII.
+
+#### 10.2.5 Estructura operativa de la E31 de ejemplo
+
+| Ruta JSON | Requerido | Fuente/criterio |
+|---|---:|---|
+| `ecf.encabezado.version` | Sí | `"1.0"` |
+| `ecf.encabezado.idDoc.tipoeCF` | Sí | `"31"` |
+| `ecf.encabezado.idDoc.eNCF` | No | Omitir para asignación del servidor |
+| `ecf.encabezado.idDoc.tipoIngresos` | Sí fiscalmente | Catálogo de tipos de ingreso |
+| `ecf.encabezado.idDoc.tipoPago` | Sí fiscalmente | Catálogo de tipos de pago |
+| `ecf.encabezado.idDoc.tablaFormasPago.formaDePago` | Condicional | Formas e importes aplicados |
+| `ecf.encabezado.emisor.rncEmisor` | Sí | Empresa del tenant |
+| `ecf.encabezado.emisor.razonSocialEmisor` | Sí | Empresa del tenant |
+| `ecf.encabezado.emisor.direccionEmisor` | Sí | Empresa del tenant |
+| `ecf.encabezado.emisor.fechaEmision` | Sí | `dd-MM-yyyy` |
+| `ecf.encabezado.comprador.rncComprador` | E31 dominicana | Cliente seleccionado |
+| `ecf.encabezado.comprador.razonSocialComprador` | E31 | Cliente seleccionado |
+| `ecf.encabezado.totales.montoTotal` | Sí | Total final |
+| `ecf.detallesItems.item` | Sí | Al menos una línea |
+
+Cada línea debe tener como mínimo práctico:
+
+| Campo | Regla frontend |
+|---|---|
+| `numeroLinea` | Entero consecutivo desde 1 |
+| `indicadorFacturacion` | Código del catálogo que determina tasa o exención |
+| `nombreItem` | Descripción corta del bien o servicio |
+| `indicadorBienoServicio` | Valor fiscal de bien o servicio |
+| `cantidadItem` | Mayor que cero para una venta normal |
+| `unidadMedida` | Código del catálogo de medidas |
+| `precioUnitarioItem` | Precio unitario según la configuración fiscal usada |
+| `montoItem` | Importe de línea antes del ITBIS en el ejemplo |
+
+`tablaCodigosItem` es opcional. Cuando se use, su forma es `tablaCodigosItem.codigosItem[]`.
+
+#### 10.2.6 Cálculos y validaciones
+
+El frontend debe calcular y mostrar los totales antes de enviar; el backend no corrige las diferencias:
+
+```text
+brutoLinea = cantidadItem × precioUnitarioItem
+montoItem = brutoLinea - descuentoMonto + recargoMonto
+totalITBISLinea = baseGravada × tasaITBIS / 100
+montoTotal = bases gravadas + monto exento + ITBIS + impuestos adicionales
+             - descuentos globales + recargos globales
+```
+
+- Obtener la tasa desde `/api/indicadoresfacturacion`; no fijarla siempre en 18 %.
+- Agrupar bases e impuestos en `montoGravadoI1/I2/I3`, `totalITBIS1/2/3` y `montoExento` según el indicador.
+- `totalITBIS` debe coincidir con la suma de impuestos aplicables.
+- La suma de `formaDePago[].montoPago` debe corresponder al importe pagado según el tipo de pago.
+- Usar aritmética decimal y una regla explícita de redondeo monetario.
+- Bloquear líneas sin nombre, cantidad, precio, indicador o medida.
+
+El backend transforma el body a XML y lo valida, pero no recalcula primero los importes enviados. Una inconsistencia puede terminar en error XSD/DGII o en datos fiscales incorrectos.
+
+#### 10.2.7 Secuencia e idempotencia
+
+Para una factura normal, omitir `eNCF` y `fechaVencimientoSecuencia`. El servidor:
+
+1. Busca la secuencia activa del tenant y tipo.
+2. Incrementa y persiste `ultimaSecuenciaUtilizada`.
+3. coloca el e-NCF y vencimiento en el documento.
+4. Luego ejecuta las validaciones estructurales, XSD y de certificado.
+
+La secuencia se consume **antes** de completar todas las validaciones. Un `400`, `500` o timeout no garantiza que nada haya cambiado. No existe header de idempotencia ni identificador de operación del frontend.
+
+Por ello, el frontend debe bloquear doble submit, no reintentar automáticamente, conservar el borrador y marcar un timeout como “resultado desconocido”. Antes de un reenvío manual debe consultarse `/api/documentosfiscales/search` con los filtros disponibles. La búsqueda ahora está aislada por el tenant del usuario y acepta `encf` mediante coincidencia parcial; aun así, si el servidor asignó el e-NCF y la respuesta se perdió, el frontend puede desconocerlo y no existe una comprobación de idempotencia perfecta.
+
+#### 10.2.8 Procesamiento interno
+
+```text
+JSON → archivo de auditoría → asignación de secuencia → XML → validación básica
+→ validación XSD → certificado → persistencia → firma → envío DGII
+→ consulta de estado → PDF si fue aceptado → ApiResult JSON
+```
+
+La conversión intermedia a XML no cambia el formato de respuesta. La línea vigente del controlador serializa `ApiResult` con Newtonsoft.Json y responde `application/json; charset=utf-8`.
+
+La operación es síncrona y usa disco, base de datos, certificado y servicios DGII. Mostrar un estado “Enviando”, impedir nuevas pulsaciones y evitar un timeout frontend demasiado corto.
+
+Si el mismo e-NCF ya existe completo, el controlador intenta recuperar su resultado. Esto ayuda en algunos casos, pero no es una garantía formal de idempotencia.
+
+El envío automático del correo al comprador está **desactivado temporalmente** en el código actual. Aunque se envíe `correoComprador` y se genere el PDF, la UI no debe afirmar que el correo fue enviado.
+
+#### 10.2.9 Respuesta JSON exitosa
+
+Éxito de transporte: `200 application/json; charset=utf-8`.
+
+```json
+{
+  "Encf": "E310000000001",
+  "FechaEmision": "07-08-2026",
+  "FechaVencimientoSecuencia": "31-12-2028",
+  "FechaFirma": "07-08-2026 14:35:20",
+  "CodigoSeguridad": "ABC123",
+  "EstadoEncf": "Aceptado (1)",
+  "SecuenciaUtilizada": true,
+  "UrlVerificacionDGII": "https://ejemplo.dgii.gov.do/consulta?...",
+  "UrlDocumentoPdf": "E310000000001.pdf",
+  "Mensajes": null,
+  "DocumentoB64": null
+}
+```
+
+La respuesta usa **PascalCase** porque se serializa manualmente con Newtonsoft.Json. La política global `camelCase` no participa. Todas las propiedades de referencia aparecen normalmente incluso cuando valen `null`.
+
+Interpretación:
+
+- Un `200` indica que se construyó `ApiResult`; la UI todavía debe revisar `EstadoEncf`, `SecuenciaUtilizada` y `Mensajes`.
+- `Mensajes`, cuando existe, tiene la forma `{ "Mensaje": ["..."] }`.
+- `UrlVerificacionDGII` y `UrlDocumentoPdf` pueden contener el literal `"None"`.
+- Pese al nombre, `UrlDocumentoPdf` se llena actualmente desde `DocumentoFiscal.ArchivoEcf`, por lo que puede ser un nombre de archivo y no una URL navegable.
+- Para descargar de manera consistente, usar `GET /api/ecf/downloads/{Encf}`.
+- `DocumentoB64` se declara en el resultado, pero su asignación está comentada; normalmente será `null`.
+- El resultado no incluye `trackId` ni devuelve el JSON original.
+
+Mapeo recomendado al modelo camelCase de la UI:
+
+```ts
+export function mapFacturacionResponse(
+  raw: FacturacionApiResponse,
+): EcfApiResult {
+  return {
+    encf: raw.Encf,
+    fechaEmision: raw.FechaEmision,
+    fechaVencimientoSecuencia: raw.FechaVencimientoSecuencia,
+    fechaFirma: raw.FechaFirma,
+    codigoSeguridad: raw.CodigoSeguridad,
+    estadoEncf: raw.EstadoEncf,
+    secuenciaUtilizada: raw.SecuenciaUtilizada,
+    urlVerificacionDGII: raw.UrlVerificacionDGII,
+    urlDocumentoPdf: raw.UrlDocumentoPdf,
+    mensajes: raw.Mensajes?.Mensaje?.filter(Boolean) ?? [],
+    documentoB64: raw.DocumentoB64,
+  };
+}
+```
+
+Cliente HTTP recomendado:
+
+```ts
+export class ApiHttpError extends Error {
+  constructor(
+    public readonly status: number,
+    message: string,
+  ) {
+    super(message);
+  }
+}
+
+export async function emitirFactura(
+  apiUrl: string,
+  token: string,
+  payload: EcfRequest,
+): Promise<EcfApiResult> {
+  const response = await fetch(`${apiUrl}/api/ecf/documentofiscal`, {
+    method: "POST",
+    headers: {
+      Authorization: `Bearer ${token}`,
+      "Content-Type": "application/json",
+      Accept: "application/json",
+    },
+    body: JSON.stringify(payload),
+  });
+
+  // Se lee texto primero porque los errores del mismo endpoint suelen ser texto.
+  const body = await response.text();
+  if (!response.ok) {
+    throw new ApiHttpError(
+      response.status,
+      body || `No se pudo emitir la factura (${response.status})`,
+    );
+  }
+
+  let raw: FacturacionApiResponse;
+  try {
+    raw = JSON.parse(body) as FacturacionApiResponse;
+  } catch {
+    throw new Error("La API devolvió un JSON de facturación inválido");
+  }
+
+  return mapFacturacionResponse(raw);
+}
+```
+
+En producción conviene validar `raw` con el validador de esquemas elegido por el frontend, no sólo hacer un cast TypeScript. No envolver esta función en retry automático.
+
+#### 10.2.10 Estados y errores
+
+| HTTP/resultado | Significado y acción frontend |
+|---|---|
+| `200` + estado aceptado | Mostrar e-NCF y habilitar descarga si el archivo está disponible |
+| `200` + aceptado condicional | Mostrar estado y mensajes; el backend también lo considera aceptado para generar PDF si la secuencia fue utilizada |
+| `200` + rechazado/no aceptado | Mostrar estado y todos los mensajes; no asumir PDF disponible |
+| `400` texto | Secuencia, estructura, XSD, certificado, persistencia o DGII; conservar borrador |
+| `400 ValidationProblemDetails` | JSON mal formado o model binding; mapear `errors` cuando exista |
+| `401` texto | JWT ausente, inválido o sin tenant; aplicar la política de sesión |
+| `415` | `Content-Type` incorrecto |
+| `429` | Límite global; no repetir automáticamente la emisión |
+| Timeout/`500` | Resultado desconocido y posiblemente parcial; verificar antes de reenviar |
+
+Este cambio de salida es incompatible con el contrato anterior: cualquier `DOMParser`, tipo XML o header `Accept: text/xml` usado específicamente para `documentofiscal` debe reemplazarse por el contrato JSON anterior. Los demás endpoints e-CF que documentan XML continúan siendo XML.
 
 ### 10.3 Consultar TrackId
 
@@ -891,7 +1245,9 @@ flowchart TD
   E --> F[POST auth/register multipart]
   F -->|respuesta confirmada| G[Navegar a login]
   G --> H[POST auth/login]
-  H -->|200| I[Guardar sesión y abrir app]
+  H -->|200| I[Guardar JWT]
+  I --> J[GET auth/perfil]
+  J -->|200| K[Guardar usuario y empresa; abrir app]
 ```
 
 Reglas:
@@ -904,6 +1260,7 @@ Reglas:
 6. Mientras falte el `await` del controlador, tratar la respuesta de registro como inestable y verificar el resultado antes de navegar.
 7. Ignorar el password si aparece en la respuesta.
 8. Iniciar sesión separadamente.
+9. Después del login, cargar `/api/auth/perfil`; no construir el emisor leyendo rutas públicas de empresas.
 
 La consulta automática de RNC no está disponible porque `DgiiController` está excluido del build. Mantener ese autocompletado detrás de una interfaz/adaptador para activarlo en el futuro, pero permitir captura manual ahora.
 
@@ -913,11 +1270,14 @@ El rol por defecto `TENANT_LISTS_ADMIN` se guarda en la tabla relacional propia 
 
 1. Login por email/password.
 2. Guardar token según la política de seguridad del frontend.
-3. Decodificar `exp`, `Tenant_ID`, nombre y rol sólo para UI.
-4. Adjuntar Bearer a llamadas protegidas.
-5. Al recibir `401`, limpiar sesión y redirigir al login.
-6. En `403`, mantener sesión y mostrar “sin permisos”.
-7. En `429`, no cerrar sesión; esperar y reintentar únicamente operaciones idempotentes.
+3. Validar que `Tenant_ID` exista y no esté vacío.
+4. Consultar `/api/auth/perfil` y guardar `UsuarioPerfil` como contexto de usuario/empresa.
+5. Decodificar `exp`, nombre y roles sólo para decisiones de UI; no sustituye autorización del servidor.
+6. Adjuntar Bearer a llamadas protegidas.
+7. Al recibir `401`, limpiar sesión y redirigir al login.
+8. Si perfil devuelve `404`, bloquear módulos dependientes de empresa y mostrar un error de configuración.
+9. En `403`, mantener sesión y mostrar “sin permisos”.
+10. En `429`, no cerrar sesión; esperar y reintentar únicamente operaciones idempotentes.
 
 ### 12.3 CRUD de clientes
 
@@ -953,15 +1313,15 @@ sequenceDiagram
   participant A as WebAPI
   participant D as DGII
   U->>F: Selecciona cliente y artículos
-  F->>A: GET catálogos/clientes/artículos
-  A-->>F: Datos del tenant
+  F->>A: GET perfil/catálogos/clientes/artículos
+  A-->>F: Emisor y datos del tenant
   F->>F: Construye líneas y calcula totales
   F->>A: POST /api/ecf/documentofiscal + JWT
   A->>A: Asigna eNCF, valida XSD, firma y guarda
   A->>D: Envía e-CF
   D-->>A: Resultado
-  A-->>F: ApiResult XML
-  F->>F: Parsea estado y mensajes
+  A-->>F: ApiResult JSON PascalCase
+  F->>F: Valida y normaliza estado y mensajes
   opt PDF disponible
     F->>A: GET /api/ecf/downloads/{eNCF}
     A-->>F: Base64
@@ -975,21 +1335,23 @@ Estados de UI:
 | Borrador | No enviado |
 | Enviando | POST pendiente; bloquear duplicados |
 | Error de validación | `400`, permitir corregir |
-| Procesado | XML recibido |
+| Procesado | JSON válido recibido |
 | Aceptado | `EstadoEncf` contiene `Aceptado` |
 | Rechazado | `EstadoEncf` contiene `Rechazado` |
 | Resultado desconocido | Timeout o `500`; verificar antes de reenviar |
 
-El `trackId` no viene en el XML de emisión. Sólo consultar seguimiento si se obtuvo del registro `DocumentoFiscal` u otra fuente confiable.
+El `trackId` no viene en el JSON de emisión. Sólo consultar seguimiento si se obtuvo del registro `DocumentoFiscal` u otra fuente confiable.
 
 ### 12.6 Bandeja fiscal
 
 1. Requiere cualquier JWT válido.
-2. Iniciar `search?pageNumber=1&pageSize=10`.
+2. Iniciar `search?pageNumber=1&pageSize=10`; el backend aplica el tenant del usuario.
 3. Debounce en filtros; reiniciar página al cambiar filtro.
 4. Usar `totalItems` y `totalPages`.
-5. Traducir `404` de búsqueda por comprador a estado vacío.
-6. Descargar por e-NCF cuando esté disponible.
+5. Usar el nuevo filtro `encf` para búsqueda parcial por e-NCF.
+6. No enviar `tenantId` desde una sesión normal.
+7. Traducir `404` de la ruta heredada por comprador a estado vacío.
+8. Descargar por e-NCF cuando esté disponible.
 
 ### 12.7 Recepción y aprobación
 
@@ -1047,7 +1409,7 @@ Codex debe crear:
 2. Cliente HTTP central con Bearer y parser JSON/XML/texto.
 3. Store de sesión y guard de autenticación/rol.
 4. Módulos:
-   - Auth/registro/reset.
+   - Auth/registro/reset y perfil de usuario/empresa.
    - Clientes.
    - Artículos.
    - Catálogos.
@@ -1069,6 +1431,7 @@ Rutas de UI sugeridas:
 /registro
 /forgot-password
 /reset-password
+/app/perfil
 /app/clientes
 /app/clientes/nuevo
 /app/clientes/:id
@@ -1096,20 +1459,26 @@ Rutas de UI sugeridas:
 - Forgot password ya corta correctamente con `400 "Usuario no encontrado"` cuando el correo no existe.
 - Reset y login usan algoritmos de hash incompatibles y el reset busca una clave string con un GUID.
 - Los resultados de validación/copia del logo y certificado se ignoran después de crear la empresa; el registro puede responder éxito sin haber copiado el archivo.
-- Catálogos, empresas y documentos fiscales no se filtran automáticamente por tenant.
+- Catálogos y rutas de empresas no se filtran automáticamente por tenant.
+- `GET /api/documentosfiscales/search` ahora filtra por `ApplicationUser.TenantId` y permite buscar por `encf`; las rutas de documentos `GET` general, por ID y por comprador siguen sin aislamiento.
 - Clientes y artículos sí están correctamente filtrados por tenant.
 - Clientes y artículos ya no contienen auditoría (`ultimaFecha`, `ultimoUsuario`); cliente tampoco contiene `cuentaContable`.
 - Empresas exponen secretos de certificado/email.
 - Sólo el listado de empresas exige `SUPERADMIN`; empresa por ID/RNC está pública y usa `401` para “no encontrado”.
+- `/api/auth/perfil` entrega el usuario y un subconjunto seguro de su empresa, pero carece de `[Authorize]`; su comprobación de autenticación se realiza manualmente con `UserManager`.
 - Documentos fiscales exige JWT, no `SUPERADMIN`.
 - `DgiiController.cs` y `Controllers/ECF/**` están excluidos de la compilación; sus rutas devuelven `404` y no aparecen en Swagger.
 - Si se reactivara DGII sin otros cambios, sus cargas quedarían públicas porque el atributo de autorización está comentado.
 - Toda la administración de roles está pública actualmente.
 - e-CF exige tenant mediante comprobación manual y devuelve `401` sin JWT/tenant.
+- `/api/ecf/documentofiscal` ahora responde `application/json` con propiedades PascalCase; ya no devuelve `ApiResult` XML.
+- La emisión consume una nueva secuencia antes de completar validación XSD, certificado, persistencia y envío; no es seguro reintentar automáticamente.
+- El correo automático al comprador está comentado temporalmente y no se envía desde la facturación actual.
+- `UrlDocumentoPdf` se llena con `ArchivoEcf` (normalmente un nombre de archivo), no con `LinkDescarga`; usar `/api/ecf/downloads/{eNCF}`.
 - `/api/ecf/recepcionaprobacioncomercial` fue eliminado.
 - No existe endpoint para guardar aceptación/rechazo comercial.
 - PDF se entrega como Base64 texto.
-- Swagger sólo está en Development.
+- Swagger está habilitado incondicionalmente, incluso en Production y Staging.
 - El comentario del rate limit dice 10, pero la configuración real es 300 solicitudes cada 2 minutos.
 
 ## 16. Checklist para comenzar
@@ -1121,9 +1490,11 @@ Rutas de UI sugeridas:
 - [ ] Implementar el cliente HTTP multiformato.
 - [ ] Copiar/adaptar `api-types.ts`.
 - [ ] Implementar auth y guards.
+- [ ] Cargar `/api/auth/perfil` al crear o restaurar la sesión y guardar `UsuarioPerfil`.
 - [ ] Implementar clientes y artículos.
 - [ ] Cargar catálogos.
 - [ ] Implementar constructor e-CF con validación fiscal.
-- [ ] Parsear `ApiResult` XML.
+- [ ] Validar `FacturacionApiResponse` JSON PascalCase y mapearlo a `EcfApiResult`.
+- [ ] Bloquear reintentos automáticos y doble submit de facturación.
 - [ ] Probar PDF Base64.
-- [ ] Mantener visibles los bloqueos de la sección 14.
+- [ ] Mantener visibles los hallazgos y bloqueos de la sección 15.

@@ -7,6 +7,36 @@ export interface LoginResponse {
   token: string
 }
 
+export interface UserProfile {
+  id: string
+  userName: string | null
+  email: string | null
+  phoneNumber: string | null
+  empresa: CompanyProfile
+}
+
+export interface CompanyProfile {
+  tenantId: string
+  nombreRazonSocial: string | null
+  nombreComercial: string | null
+  sucursal: string | null
+  rnc: string | null
+  direccion: string | null
+  telefono: string | null
+  telefono2: string | null
+  municipioId: string | null
+  provinciaId: string | null
+  correo: string | null
+  webSite: string | null
+  actividadEconomica: string | null
+}
+
+export interface ApiMessageResponse {
+  mensaje: string
+}
+
+export type ProfileStatus = 'idle' | 'loading' | 'ready' | 'missing' | 'error'
+
 export interface ProblemDetails {
   type?: string
   title?: string

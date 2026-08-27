@@ -1,5 +1,5 @@
 <template>
-    <aside class="sidebar" data-background-color="dark" aria-label="Menú principal">
+    <aside ref="sidebarElement" class="sidebar" data-background-color="dark" aria-label="Menú principal">
         <div class="sidebar-logo">
             <div class="logo-header" data-background-color="dark">
                 <NuxtLink to="/admin" class="logo text-white fw-bold">
@@ -37,7 +37,7 @@
                             </NuxtLink>
                         </li>
 
-                        <li class="nav-item" :class="{ active: isBillingActive }">
+                        <li class="nav-item" :class="{ active: isBillingActive, 'is-menu-open': expandedMenu === 'billing' }">
                             <button
                                 type="button"
                                 class="sidebar-menu-toggle"
@@ -54,12 +54,11 @@
                                     <li><NuxtLink to="/admin/billing" @click="handleNavigation"><span class="sub-item">Lista de facturas</span></NuxtLink></li>
                                     <li><NuxtLink to="/admin/billing/sale" @click="handleNavigation"><span class="sub-item">Realizar venta</span></NuxtLink></li>
                                     <li><NuxtLink to="/admin/billing/credit-notes" @click="handleNavigation"><span class="sub-item">Notas de crédito</span></NuxtLink></li>
-                                    <li><NuxtLink to="/admin/billing/settings" @click="handleNavigation"><span class="sub-item">Ajustes de facturación</span></NuxtLink></li>
                                 </ul>
                             </div>
                         </li>
 
-                        <li class="nav-item" :class="{ active: isInventoryActive }">
+                        <li class="nav-item" :class="{ active: isInventoryActive, 'is-menu-open': expandedMenu === 'inventory' }">
                             <button
                                 type="button"
                                 class="sidebar-menu-toggle"
@@ -74,37 +73,8 @@
                             <div id="inventory-menu" class="collapse" :class="{ show: expandedMenu === 'inventory' }">
                                 <ul class="nav nav-collapse">
                                     <li><NuxtLink to="/admin/inventory" @click="handleNavigation"><span class="sub-item">Productos</span></NuxtLink></li>
-                                    <li><a href="#" @click.prevent><span class="sub-item">Proveedores</span></a></li>
-                                    <li><a href="#" @click.prevent><span class="sub-item">Ajustes de inventario</span></a></li>
                                 </ul>
                             </div>
-                        </li>
-
-                        <li class="nav-item" :class="{ active: expandedMenu === 'reports' }">
-                            <button
-                                type="button"
-                                class="sidebar-menu-toggle"
-                                :aria-expanded="expandedMenu === 'reports'"
-                                aria-controls="reports-menu"
-                                @click="toggleMenu('reports')"
-                            >
-                                <i class="fas fa-chart-bar"></i>
-                                <p>Informes</p>
-                                <span class="caret"></span>
-                            </button>
-                            <div id="reports-menu" class="collapse" :class="{ show: expandedMenu === 'reports' }">
-                                <ul class="nav nav-collapse">
-                                    <li><a href="#" @click.prevent><span class="sub-item">Realizar informe</span></a></li>
-                                    <li><a href="#" @click.prevent><span class="sub-item">Ajustes de informes</span></a></li>
-                                </ul>
-                            </div>
-                        </li>
-
-                        <li class="nav-item" :class="{ active: route.path.startsWith('/admin/settings') }">
-                            <NuxtLink to="/admin/settings" @click="handleNavigation">
-                                <i class="fas fa-cog"></i>
-                                <p>Ajustes</p>
-                            </NuxtLink>
                         </li>
                     </ul>
                 </nav>
@@ -115,6 +85,7 @@
                         <div class="sidebar-user-info">
                             <span class="sidebar-user-name">{{ userName }}</span>
                             <span class="sidebar-user-email">{{ userEmail }}</span>
+                            <span class="sidebar-user-company">{{ companyName }}</span>
                         </div>
                     </div>
                     <button type="button" class="btn btn-outline-light btn-sm sidebar-logout" @click="logout">
@@ -128,19 +99,29 @@
 </template>
 
 <script setup lang="ts">
-type SidebarMenu = 'billing' | 'inventory' | 'reports'
+type SidebarMenu = 'billing' | 'inventory'
 
 const emit = defineEmits<{
     toggle: []
     navigate: []
 }>()
 
+const props = withDefaults(defineProps<{
+    collapsed?: boolean
+}>(), {
+    collapsed: false,
+})
+
 const route = useRoute()
 const auth = useAuthStore()
 const expandedMenu = ref<SidebarMenu | null>(null)
+const sidebarElement = ref<HTMLElement | null>(null)
 
 const userName = computed(() => auth.user?.name || auth.user?.userName || 'Usuario Effisort')
 const userEmail = computed(() => auth.user?.email || 'Sin correo registrado')
+const companyName = computed(() => auth.profile?.empresa.nombreComercial
+    || auth.profile?.empresa.nombreRazonSocial
+    || (auth.profileStatus === 'missing' ? 'Empresa no configurada' : 'Empresa no disponible'))
 const userInitial = computed(() => userName.value.trim().charAt(0).toUpperCase() || 'U')
 const isBillingActive = computed(() => route.path.startsWith('/admin/billing'))
 const isInventoryActive = computed(() => route.path.startsWith('/admin/inventory'))
@@ -156,7 +137,18 @@ function toggleMenu(menu: SidebarMenu) {
 }
 
 function handleNavigation() {
+    expandedMenu.value = null
     emit('navigate')
+}
+
+function closeMenuOnOutsideClick(event: MouseEvent) {
+    if (!props.collapsed || !expandedMenu.value) return
+
+    const target = event.target
+    if (!(target instanceof Node)) return
+
+    const openMenu = sidebarElement.value?.querySelector('.nav-item.is-menu-open')
+    if (openMenu && !openMenu.contains(target)) expandedMenu.value = null
 }
 
 async function logout() {
@@ -167,10 +159,20 @@ watch(
     () => route.path,
     path => {
         const routeMenu = menuFromPath(path)
-        if (routeMenu) expandedMenu.value = routeMenu
+        if (routeMenu && !props.collapsed) expandedMenu.value = routeMenu
     },
     { immediate: true },
 )
+
+watch(
+    () => props.collapsed,
+    isCollapsed => {
+        if (isCollapsed) expandedMenu.value = null
+    },
+)
+
+onMounted(() => document.addEventListener('click', closeMenuOnOutsideClick))
+onBeforeUnmount(() => document.removeEventListener('click', closeMenuOnOutsideClick))
 </script>
 
 <style scoped>
@@ -287,7 +289,8 @@ watch(
 }
 
 .sidebar-user-name,
-.sidebar-user-email {
+.sidebar-user-email,
+.sidebar-user-company {
     overflow: hidden;
     color: #fff;
     text-overflow: ellipsis;
@@ -304,6 +307,12 @@ watch(
     font-size: 0.75rem;
 }
 
+.sidebar-user-company {
+    margin-top: 0.15rem;
+    color: rgba(169, 156, 246, 0.92);
+    font-size: 0.7rem;
+}
+
 .sidebar-logout {
     width: 100%;
     margin-top: 0.875rem;
@@ -313,31 +322,74 @@ watch(
     margin-right: 0.35rem;
 }
 
-:global(.sidebar_minimize) .sidebar-user-info,
-:global(.sidebar_minimize) .sidebar-logout {
+:global(.sidebar_minimize .sidebar-user-info),
+:global(.sidebar_minimize .sidebar-logout) {
     display: none;
 }
 
-:global(.sidebar_minimize) .sidebar-user {
+:global(.sidebar_minimize .sidebar-user) {
     display: flex;
     justify-content: center;
     padding-right: 0.5rem;
     padding-left: 0.5rem;
 }
 
-:global(.sidebar_minimize) .sidebar-menu-toggle {
+:global(.sidebar_minimize .sidebar-menu-toggle) {
     justify-content: center;
     padding-right: 0;
     padding-left: 0;
 }
 
-:global(.sidebar_minimize) .sidebar-menu-toggle i {
+:global(.sidebar_minimize .sidebar-menu-toggle i) {
     margin-right: 0;
 }
 
-:global(.sidebar_minimize) .sidebar-menu-toggle p,
-:global(.sidebar_minimize) .sidebar-menu-toggle .caret,
-:global(.sidebar_minimize) .sidebar-menu-toggle + .collapse {
+:global(.sidebar_minimize .sidebar-menu-toggle p),
+:global(.sidebar_minimize .sidebar-menu-toggle .caret) {
     display: none !important;
+}
+
+@media screen and (min-width: 992px) {
+    :global(.sidebar_minimize .sidebar),
+    :global(.sidebar_minimize .sidebar .sidebar-wrapper) {
+        overflow: visible;
+    }
+
+    :global(.sidebar_minimize .sidebar .nav-item.is-menu-open) {
+        position: relative;
+        z-index: 2;
+    }
+
+    :global(.sidebar_minimize .sidebar .nav-item.is-menu-open > .collapse.show) {
+        position: absolute;
+        top: 0;
+        left: 75px;
+        display: block !important;
+        width: 220px;
+        padding: 0.5rem 0;
+        border: 1px solid rgba(255, 255, 255, 0.1);
+        border-radius: 0 0.75rem 0.75rem 0;
+        background: #1a2035;
+        box-shadow: 0 0.75rem 1.75rem rgba(3, 11, 28, 0.28);
+    }
+
+    :global(.sidebar_minimize .sidebar .nav-item.is-menu-open > .collapse.show .nav-collapse) {
+        display: block !important;
+        margin: 0;
+        padding: 0;
+    }
+
+    :global(.sidebar_minimize .sidebar .nav-item.is-menu-open > .collapse.show .nav-collapse li a) {
+        display: flex !important;
+        padding: 0.6rem 1rem !important;
+        color: rgba(255, 255, 255, 0.82) !important;
+    }
+
+    :global(.sidebar_minimize .sidebar .nav-item.is-menu-open > .collapse.show .nav-collapse li a span) {
+        display: block !important;
+        color: inherit !important;
+        font-size: 0.9rem;
+        white-space: nowrap;
+    }
 }
 </style>

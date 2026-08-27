@@ -1,5 +1,7 @@
 import { defineStore } from 'pinia'
-import type { AuthUser, JwtSessionClaims } from '~/types/auth'
+import type { AuthUser, JwtSessionClaims, ProfileStatus, UserProfile } from '~/types/auth'
+import { ApiError } from '~/utils/api'
+import { validateUserProfile } from '~/utils/auth'
 
 type JwtPayload = JwtSessionClaims & {
   sub?: string
@@ -78,11 +80,20 @@ export const useAuthStore = defineStore('authStore', () => {
   const token = useState<string | null>('auth-token', () => null)
   const expiresAt = useState<number | null>('auth-expires-at', () => null)
   const isInitialized = useState<boolean>('auth-initialized', () => false)
+  const profile = useState<UserProfile | null>('auth-profile', () => null)
+  const profileStatus = useState<ProfileStatus>('auth-profile-status', () => 'idle')
+  const profileError = useState<string>('auth-profile-error', () => '')
 
   const isAuthenticated = computed(() => {
     if (!token.value || !expiresAt.value || !user.value?.tenantId) return false
     return expiresAt.value > Date.now()
   })
+
+  const hasCompanyContext = computed(() => Boolean(
+    isAuthenticated.value
+    && profileStatus.value === 'ready'
+    && profile.value?.empresa.tenantId === user.value?.tenantId,
+  ))
 
   function clearStoredSession() {
     if (import.meta.server) return
@@ -97,6 +108,9 @@ export const useAuthStore = defineStore('authStore', () => {
     token.value = null
     user.value = null
     expiresAt.value = null
+    profile.value = null
+    profileStatus.value = 'idle'
+    profileError.value = ''
     clearStoredSession()
   }
 
@@ -109,6 +123,9 @@ export const useAuthStore = defineStore('authStore', () => {
     token.value = tokenToRestore
     expiresAt.value = payload.exp * 1000
     user.value = userFromPayload(payload)
+    profile.value = null
+    profileStatus.value = 'idle'
+    profileError.value = ''
     return true
   }
 
@@ -131,12 +148,70 @@ export const useAuthStore = defineStore('authStore', () => {
     token.value = tokenToSet
     expiresAt.value = payload.exp * 1000
     user.value = userFromPayload(payload)
+    profile.value = null
+    profileStatus.value = 'idle'
+    profileError.value = ''
     isInitialized.value = true
 
     if (import.meta.server) return
 
     const storage = remember ? localStorage : sessionStorage
     storage.setItem('token', tokenToSet)
+  }
+
+  async function loadProfile() {
+    if (!isAuthenticated.value) {
+      throw new Error('No existe una sesión válida para consultar el perfil.')
+    }
+
+    profileStatus.value = 'loading'
+    profileError.value = ''
+
+    try {
+      const { $api } = useNuxtApp()
+      const loadedProfile = validateUserProfile(await $api<unknown>('/api/auth/perfil', {
+        method: 'GET',
+        accept: 'application/json',
+      }))
+      const sessionUser = user.value
+
+      if (!sessionUser || loadedProfile.empresa.tenantId !== sessionUser.tenantId) {
+        clearSession()
+        throw new Error('El tenant del perfil no coincide con el tenant de la sesión.')
+      }
+
+      profile.value = loadedProfile
+      profileStatus.value = 'ready'
+      user.value = {
+        ...sessionUser,
+        id: loadedProfile.id,
+        name: loadedProfile.userName || loadedProfile.email || sessionUser.name,
+        userName: loadedProfile.userName || sessionUser.userName,
+        email: loadedProfile.email || sessionUser.email,
+      }
+      return loadedProfile
+    } catch (error) {
+      profile.value = null
+
+      if (error instanceof ApiError && error.status === 404) {
+        profileStatus.value = 'missing'
+        profileError.value = error.message
+        return null
+      }
+
+      if (error instanceof ApiError && error.status === 401) {
+        clearSession()
+        throw error
+      }
+
+      if (!token.value) throw error
+
+      profileStatus.value = 'error'
+      profileError.value = error instanceof Error
+        ? error.message
+        : 'No pudimos cargar el perfil y la empresa de la sesión.'
+      throw error
+    }
   }
 
   async function logout() {
@@ -146,12 +221,17 @@ export const useAuthStore = defineStore('authStore', () => {
 
   return {
     isAuthenticated,
+    hasCompanyContext,
     user,
     token,
     expiresAt,
     isInitialized,
+    profile,
+    profileStatus,
+    profileError,
     initFromStorage,
     setSession,
+    loadProfile,
     clearSession,
     logout,
   }

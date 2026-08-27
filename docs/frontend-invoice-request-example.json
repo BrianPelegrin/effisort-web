@@ -1,0 +1,148 @@
+{
+  "ecf": {
+    "encabezado": {
+      "version": "1.0",
+      "idDoc": {
+        "tipoeCF": "31",
+        "eNCF": null,
+        "fechaVencimientoSecuencia": null,
+        "indicadorNotaCredito": null,
+        "indicadorEnvioDiferido": null,
+        "indicadorMontoGravado": 0,
+        "tipoIngresos": "01",
+        "tipoPago": 1,
+        "fechaLimitePago": null,
+        "terminoPago": null,
+        "tablaFormasPago": {
+          "formaDePago": [
+            {
+              "formaPago": 1,
+              "montoPago": 236
+            }
+          ]
+        },
+        "tipoCuentaPago": null,
+        "numeroCuentaPago": null,
+        "bancoPago": null,
+        "fechaDesde": null,
+        "fechaHasta": null,
+        "totalPaginas": null
+      },
+      "emisor": {
+        "rncEmisor": "101234567",
+        "razonSocialEmisor": "EMPRESA EJEMPLO SRL",
+        "nombreComercial": "EMPRESA EJEMPLO",
+        "sucursal": "Principal",
+        "direccionEmisor": "",
+        "municipio": "010100",
+        "provincia": "010000",
+        "tablaTelefonoEmisor": {
+          "telefonoEmisor": [
+            "8095550100"
+          ]
+        },
+        "correoEmisor": "facturacion@empresa-ejemplo.com",
+        "webSite": null,
+        "actividadEconomica": "VENTAS",
+        "codigoVendedor": null,
+        "numeroFacturaInterna": "FAC-000001",
+        "numeroPedidoInterno": null,
+        "zonaVenta": null,
+        "rutaVenta": null,
+        "informacionAdicionalEmisor": null,
+        "fechaEmision": "18-08-2026"
+      },
+      "comprador": {
+        "rncComprador": "131234567",
+        "identificadorExtranjero": null,
+        "razonSocialComprador": "CLIENTE EJEMPLO SRL",
+        "contactoComprador": null,
+        "correoComprador": null,
+        "direccionComprador": null,
+        "municipioComprador": null,
+        "provinciaComprador": null,
+        "paisComprador": null,
+        "fechaEntrega": null,
+        "contactoEntrega": null,
+        "direccionEntrega": null,
+        "telefonoAdicional": null,
+        "fechaOrdenCompra": null,
+        "numeroOrdenCompra": null,
+        "codigoInternoComprador": null,
+        "responsablePago": null,
+        "informacionAdicionalComprador": null
+      },
+      "informacionesAdicionales": null,
+      "transporte": null,
+      "totales": {
+        "montoGravadoTotal": 200,
+        "montoGravadoI1": 200,
+        "montoGravadoI2": null,
+        "montoGravadoI3": null,
+        "montoExento": null,
+        "itbiS1": 18,
+        "itbiS2": null,
+        "itbiS3": null,
+        "totalITBIS": 36,
+        "totalITBIS1": 36,
+        "totalITBIS2": null,
+        "totalITBIS3": null,
+        "montoImpuestoAdicional": null,
+        "impuestosAdicionales": null,
+        "montoTotal": 236,
+        "montoNoFacturable": null,
+        "montoPeriodo": null,
+        "saldoAnterior": null,
+        "montoAvancePago": null,
+        "valorPagar": 236,
+        "totalITBISRetenido": null,
+        "totalISRRetencion": null,
+        "totalITBISPercepcion": null,
+        "totalISRPercepcion": null
+      },
+      "otraMoneda": null
+    },
+    "detallesItems": {
+      "item": [
+        {
+          "numeroLinea": 1,
+          "tablaCodigosItem": {
+            "codigosItem": [
+              {
+                "tipoCodigo": "Interno",
+                "codigoItem": "ART-0001"
+              }
+            ]
+          },
+          "indicadorFacturacion": 1,
+          "retencion": null,
+          "nombreItem": "PRODUCTO DE EJEMPLO",
+          "indicadorBienoServicio": 1,
+          "descripcionItem": null,
+          "cantidadItem": "2",
+          "unidadMedida": 43,
+          "cantidadReferencia": null,
+          "unidadReferencia": null,
+          "tablaSubcantidad": null,
+          "gradosAlcohol": null,
+          "precioUnitarioReferencia": null,
+          "fechaElaboracion": null,
+          "fechaVencimientoItem": null,
+          "precioUnitarioItem": 100,
+          "descuentoMonto": null,
+          "tablaSubDescuento": null,
+          "recargoMonto": null,
+          "tablaSubRecargo": null,
+          "tablaImpuestoAdicional": null,
+          "otraMonedaDetalle": null,
+          "montoItem": 200
+        }
+      ]
+    },
+    "subtotales": null,
+    "descuentosORecargos": null,
+    "paginacion": null,
+    "informacionReferencia": null,
+    "fechaHoraFirma": null
+  }
+}

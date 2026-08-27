@@ -1,14 +1,14 @@
 <template>
-    <div class="main-header">
+    <header class="main-header admin-header">
         <div class="main-header-logo">
             <!-- Logo Header -->
-            <div class="logo-header" data-background-color="dark">
-                <RouterLink to="/admin" class="logo text-white fw-bold">
-                    <i class="fa fa-receipt"></i> Effisort
-                </RouterLink>
+            <div class="logo-header admin-mobile-header" data-background-color="dark">
+                <NuxtLink to="/admin" class="logo text-white fw-bold admin-mobile-brand" aria-label="Ir al inicio de Effisort">
+                    <i class="bi bi-receipt-cutoff" aria-hidden="true"></i> Effisort
+                </NuxtLink>
                 <div class="nav-toggle">
-                    <button type="button" class="btn btn-toggle" aria-label="Abrir o cerrar menú lateral" @click="emit('toggle-sidebar')">
-                        <i class="gg-menu-left"></i>
+                    <button type="button" class="admin-mobile-menu-toggle" aria-label="Abrir o cerrar menú lateral" @click="emit('toggle-sidebar')">
+                        <i class="bi bi-list" aria-hidden="true"></i>
                     </button>
                 </div>
             </div>
@@ -103,7 +103,7 @@
             </div>
         </nav>
         <!-- End Navbar -->
-    </div>
+    </header>
 </template>
 
 <script setup lang="ts">
@@ -112,4 +112,79 @@ const emit = defineEmits<{
 }>()
 </script>
 
-<style scoped></style>
+<style scoped>
+.admin-mobile-header {
+    display: flex;
+    align-items: center;
+    height: 70px;
+    min-height: 70px;
+    padding: 0 1rem;
+}
+
+.admin-mobile-menu-toggle {
+    display: inline-grid;
+    width: 2.5rem;
+    height: 2.5rem;
+    padding: 0;
+    place-items: center;
+    border: 0;
+    border-radius: 0.5rem;
+    background: transparent;
+    color: #fff;
+    font-size: 1.65rem;
+    line-height: 1;
+}
+
+.admin-mobile-menu-toggle:hover,
+.admin-mobile-menu-toggle:focus-visible {
+    background: rgba(255, 255, 255, 0.1);
+}
+
+.admin-mobile-menu-toggle:focus-visible {
+    outline: 2px solid rgba(255, 255, 255, 0.8);
+    outline-offset: 2px;
+}
+
+.admin-mobile-brand {
+    position: absolute;
+    left: 50%;
+    display: inline-flex;
+    align-items: center;
+    gap: 0.3rem;
+    color: #fff;
+    font-size: 1.1rem;
+    font-weight: 700;
+    letter-spacing: -0.02em;
+    line-height: 1;
+    transform: translateX(-50%);
+}
+
+.admin-mobile-brand:hover {
+    color: #fff;
+}
+
+.admin-mobile-brand i {
+    color: #54a6ff;
+    font-size: 1rem;
+}
+
+@media screen and (max-width: 991.98px) {
+    .admin-header {
+        min-height: 70px;
+    }
+
+    .admin-header .main-header-logo {
+        display: block;
+        height: 70px;
+    }
+
+    .admin-header .admin-mobile-header {
+        position: relative;
+        width: 100%;
+    }
+
+    .admin-header .navbar-header {
+        display: none;
+    }
+}
+</style>

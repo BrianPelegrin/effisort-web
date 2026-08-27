@@ -1,5 +1,12 @@
 import type { BillingIndicator } from '~/types/article'
-import type { Currency, PaymentMethod, ReceiptType } from '~/types/billing'
+import type {
+  Currency,
+  IncomeType,
+  PaymentMethod,
+  PaymentTerm,
+  PaymentType,
+  ReceiptType,
+} from '~/types/billing'
 
 export function useBillingCatalogsApi() {
   const { $api } = useNuxtApp()
@@ -20,10 +27,25 @@ export function useBillingCatalogsApi() {
     return $api<BillingIndicator[]>('/api/indicadoresfacturacion')
   }
 
+  function getIncomeTypes() {
+    return $api<IncomeType[]>('/api/tiposingresos')
+  }
+
+  function getPaymentTypes() {
+    return $api<PaymentType[]>('/api/tipospagos')
+  }
+
+  function getPaymentTerms() {
+    return $api<PaymentTerm[]>('/api/terminospagos')
+  }
+
   return {
     getPaymentMethods,
     getCurrencies,
     getReceiptTypes,
     getBillingIndicators,
+    getIncomeTypes,
+    getPaymentTypes,
+    getPaymentTerms,
   }
 }

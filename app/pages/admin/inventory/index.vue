@@ -524,7 +524,7 @@ function goToPage(page: number) { currentPage.value = Math.min(Math.max(page, 1)
       <div class="table-header"><div><h2>Listado de artículos</h2><p v-if="!loading">{{ filteredArticles.length ? `Mostrando ${firstVisibleItem}–${lastVisibleItem} de ${filteredArticles.length} artículos.` : 'No hay artículos para mostrar.' }}</p><p v-else>Cargando información...</p></div></div>
       <div v-if="loading" class="empty-state"><span class="spinner-border text-primary" /><span>Cargando inventario...</span></div>
       <template v-else-if="paginatedArticles.length">
-        <div class="table-responsive">
+        <div class="table-responsive paginated-table-viewport">
           <table class="table effi-table align-middle">
             <thead><tr><th>Artículo</th><th>Tipo</th><th>Indicador</th><th>Precio</th><th>Existencia</th><th>Estado</th><th class="text-end">Acciones</th></tr></thead>
             <tbody>
@@ -544,7 +544,7 @@ function goToPage(page: number) { currentPage.value = Math.min(Math.max(page, 1)
             </tbody>
           </table>
         </div>
-        <nav v-if="totalPages > 1" class="pagination-wrap"><span>Página {{ currentPage }} de {{ totalPages }}</span><div class="btn-group"><button type="button" class="btn btn-outline-secondary btn-sm" :disabled="currentPage === 1" @click="goToPage(currentPage - 1)">Anterior</button><button type="button" class="btn btn-outline-secondary btn-sm" :disabled="currentPage === totalPages" @click="goToPage(currentPage + 1)">Siguiente</button></div></nav>
+        <CommonPaginationControls :current-page="currentPage" :total-pages="totalPages" aria-label="Paginación de artículos" @change="goToPage" />
       </template>
       <div v-else class="empty-state"><span class="empty-icon"><i class="bi bi-box-seam" /></span><h3>{{ search ? 'No encontramos coincidencias' : 'Aún no hay artículos registrados' }}</h3><p>{{ search ? 'Prueba con otro nombre, código o descripción.' : 'Registra el primer producto o servicio de tu inventario.' }}</p><button type="button" class="btn btn-primary" @click="search ? clearSearch() : openCreateForm()">{{ search ? 'Limpiar búsqueda' : 'Registrar artículo' }}</button></div>
     </div>

@@ -1,1040 +1,230 @@
-﻿<template>
-  <div class="billing-page">
-    <!-- Header -->
-    <div class="page-header mb-4">
+<script setup lang="ts">
+import type { FiscalDocument } from '~/types/ecf'
+import { ensureFiscalDocumentsDescending } from '~/utils/fiscal-documents'
+
+interface TemplateNotify {
+  notify?: (
+    content: { icon: string, title: string, message: string },
+    options: Record<string, unknown>,
+  ) => unknown
+}
+
+const { searchAllDocuments } = useFiscalDocumentsApi()
+const { downloadPdf } = useEcfApi()
+
+const loading = ref(true)
+const error = ref('')
+const downloadingEncf = ref('')
+const allDocuments = ref<FiscalDocument[]>([])
+const pageNumber = ref(1)
+const pageSize = 10
+const totalItems = computed(() => allDocuments.value.length)
+const totalPages = computed(() => Math.max(1, Math.ceil(totalItems.value / pageSize)))
+const documents = computed(() => {
+  const start = (pageNumber.value - 1) * pageSize
+  return allDocuments.value.slice(start, start + pageSize)
+})
+
+const filters = reactive({
+  encfTipo: '',
+  encf: '',
+  rncComprador: '',
+  fechaEmision: '',
+  estadoEncf: '',
+})
+
+const acceptedOnPage = computed(() => documents.value.filter(document => classifyStatus(document.estadoEncf) === 'accepted').length)
+const rejectedOnPage = computed(() => documents.value.filter(document => classifyStatus(document.estadoEncf) === 'rejected').length)
+const pendingOnPage = computed(() => documents.value.length - acceptedOnPage.value - rejectedOnPage.value)
+
+onMounted(loadDocuments)
+
+async function loadDocuments() {
+  loading.value = true
+  error.value = ''
+  try {
+    const response = await searchAllDocuments({
+      encfTipo: filters.encfTipo || undefined,
+      encf: filters.encf.trim() || undefined,
+      rncComprador: filters.rncComprador.trim() || undefined,
+      fechaEmision: filters.fechaEmision || undefined,
+      estadoEncf: filters.estadoEncf.trim() || undefined,
+    })
+    allDocuments.value = ensureFiscalDocumentsDescending(response)
+    pageNumber.value = Math.min(pageNumber.value, totalPages.value)
+  } catch (caughtError) {
+    allDocuments.value = []
+    error.value = caughtError instanceof Error
+      ? caughtError.message
+      : 'No pudimos consultar la bandeja fiscal.'
+  } finally {
+    loading.value = false
+  }
+}
+
+async function applyFilters() {
+  pageNumber.value = 1
+  await loadDocuments()
+}
+
+async function clearFilters() {
+  Object.assign(filters, { encfTipo: '', encf: '', rncComprador: '', fechaEmision: '', estadoEncf: '' })
+  pageNumber.value = 1
+  await loadDocuments()
+}
+
+async function changePage(page: number) {
+  if (page < 1 || page > totalPages.value || page === pageNumber.value) return
+  pageNumber.value = page
+}
+
+async function downloadDocument(document: FiscalDocument) {
+  if (!document.encf || downloadingEncf.value) return
+  downloadingEncf.value = document.encf
+  try {
+    const blob = await downloadPdf(document.encf)
+    const url = URL.createObjectURL(blob)
+    const link = window.document.createElement('a')
+    link.href = url
+    link.download = `${document.encf}.pdf`
+    link.click()
+    URL.revokeObjectURL(url)
+  } catch (caughtError) {
+    showNotification(
+      'PDF no disponible',
+      caughtError instanceof Error ? caughtError.message : 'No pudimos descargar el documento fiscal.',
+      'danger',
+    )
+  } finally {
+    downloadingEncf.value = ''
+  }
+}
+
+function canDownload(document: FiscalDocument) {
+  return Boolean(document.encf && document.secuenciaUtilizada && classifyStatus(document.estadoEncf) !== 'rejected')
+}
+
+function classifyStatus(value: string | null) {
+  const status = value?.toLocaleLowerCase('es') ?? ''
+  if (status.includes('rechazado') || status.includes('no aceptado')) return 'rejected'
+  if (status.includes('aceptado')) return 'accepted'
+  return 'pending'
+}
+
+function statusClass(value: string | null) {
+  return `status-${classifyStatus(value)}`
+}
+
+function formatMoney(value: number | null) {
+  return new Intl.NumberFormat('es-DO', { style: 'currency', currency: 'DOP' }).format(value ?? 0)
+}
+
+function formatDate(value: string | null) {
+  if (!value) return 'No informada'
+  const isoMatch = /^(\d{4})-(\d{2})-(\d{2})/.exec(value)
+  if (isoMatch) return `${isoMatch[3]}/${isoMatch[2]}/${isoMatch[1]}`
+  return value
+}
+
+function showNotification(title: string, message: string, type: 'danger' | 'info') {
+  const jquery = (window as unknown as { jQuery?: TemplateNotify }).jQuery
+  jquery?.notify?.(
+    { icon: 'bi bi-info-circle-fill', title, message },
+    { type, placement: { from: 'top', align: 'right' }, delay: 4000, z_index: 2000 },
+  )
+}
+</script>
+
+<template>
+  <main class="billing-page">
+    <header class="page-header mb-4">
       <div>
         <div class="breadcrumb-line mb-2">
-          <span>Facturación</span>
-          <i class="bi bi-chevron-right"></i>
-          <strong>Listado de facturas</strong>
+          <span>Facturación</span><i class="bi bi-chevron-right" aria-hidden="true" /><strong>Bandeja fiscal</strong>
         </div>
-
-        <h1 class="page-title">Facturación</h1>
-        <p class="page-subtitle">
-          Gestión y seguimiento de facturas electrónicas.
-        </p>
+        <h1 class="page-title">Documentos fiscales</h1>
+        <p class="page-subtitle">Consulta los e-CF registrados por la WebAPI para el tenant de tu sesión.</p>
       </div>
+      <NuxtLink to="/admin/billing/sale" class="btn btn-primary effi-btn-primary">
+        <i class="bi bi-plus-lg me-2" aria-hidden="true" />Nueva factura
+      </NuxtLink>
+    </header>
 
-      <div class="header-actions">
-        <button type="button" class="btn btn-outline-primary effi-btn" @click="exportInvoices">
-          <i class="bi bi-download me-2"></i>
-          Exportar
-        </button>
+    <section class="row g-3 mb-4" aria-label="Resumen de la página actual">
+      <div class="col-xl-3 col-md-6"><div class="effi-card metric-card"><i class="bi bi-files metric-icon metric-blue" /><div><span>Total encontrado</span><strong>{{ totalItems }}</strong></div></div></div>
+      <div class="col-xl-3 col-md-6"><div class="effi-card metric-card"><i class="bi bi-check-circle metric-icon metric-success" /><div><span>Aceptados en página</span><strong>{{ acceptedOnPage }}</strong></div></div></div>
+      <div class="col-xl-3 col-md-6"><div class="effi-card metric-card"><i class="bi bi-hourglass-split metric-icon metric-warning" /><div><span>Otros estados en página</span><strong>{{ pendingOnPage }}</strong></div></div></div>
+      <div class="col-xl-3 col-md-6"><div class="effi-card metric-card"><i class="bi bi-x-circle metric-icon metric-danger" /><div><span>Rechazados en página</span><strong>{{ rejectedOnPage }}</strong></div></div></div>
+    </section>
 
-        <button type="button" class="btn btn-primary effi-btn-primary" @click="goToCreateInvoice">
-          <i class="bi bi-plus-lg me-2"></i>
-          Nueva factura
-        </button>
-      </div>
-    </div>
-
-    <!-- KPI Cards -->
-    <div class="row g-3 mb-4">
-      <div class="col-xl-3 col-md-6">
-        <div class="effi-card metric-card">
-          <div class="metric-icon metric-blue">
-            <i class="bi bi-receipt"></i>
-          </div>
-
-          <div>
-            <span class="metric-label">Facturas emitidas</span>
-            <strong class="metric-value">128</strong>
-            <small class="metric-helper text-success">
-              <i class="bi bi-arrow-up-short"></i>
-              18% vs. mes anterior
-            </small>
-          </div>
-        </div>
-      </div>
-
-      <div class="col-xl-3 col-md-6">
-        <div class="effi-card metric-card">
-          <div class="metric-icon metric-warning">
-            <i class="bi bi-clock-history"></i>
-          </div>
-
-          <div>
-            <span class="metric-label">Pendientes</span>
-            <strong class="metric-value">24</strong>
-            <small class="metric-helper text-warning">
-              {{ formatCurrency(8450) }} pendientes
-            </small>
-          </div>
-        </div>
-      </div>
-
-      <div class="col-xl-3 col-md-6">
-        <div class="effi-card metric-card">
-          <div class="metric-icon metric-success">
-            <i class="bi bi-check-circle"></i>
-          </div>
-
-          <div>
-            <span class="metric-label">Pagadas</span>
-            <strong class="metric-value">96</strong>
-            <small class="metric-helper text-success">
-              {{ formatCurrency(156780.5) }} cobrados
-            </small>
-          </div>
-        </div>
-      </div>
-
-      <div class="col-xl-3 col-md-6">
-        <div class="effi-card metric-card">
-          <div class="metric-icon metric-purple">
-            <i class="bi bi-currency-dollar"></i>
-          </div>
-
-          <div>
-            <span class="metric-label">Monto facturado</span>
-            <strong class="metric-value">{{ formatCurrency(165230.5) }}</strong>
-            <small class="metric-helper text-success">
-              <i class="bi bi-arrow-up-short"></i>
-              22% vs. mes anterior
-            </small>
-          </div>
-        </div>
-      </div>
-    </div>
-
-    <!-- Filters -->
-    <div class="effi-card filters-card mb-4">
+    <form class="effi-card filters-card mb-4" @submit.prevent="applyFilters">
       <div class="row g-3 align-items-end">
-        <div class="col-xl-4 col-lg-6">
-          <label class="form-label">Buscar</label>
-
-          <div class="input-icon left">
-            <i class="bi bi-search"></i>
-            <input
-              v-model="filters.search"
-              type="text"
-              class="form-control effi-input input-with-left-icon"
-              placeholder="Buscar por factura, cliente, RNC o e-CF..."
-            />
-          </div>
-        </div>
-
-        <div class="col-xl-2 col-lg-3 col-md-6">
-          <label class="form-label">Estado</label>
-          <select v-model="filters.status" class="form-select effi-input">
-            <option value="">Todos</option>
-            <option value="Borrador">Borrador</option>
-            <option value="Emitida">Emitida</option>
-            <option value="Pendiente">Pendiente</option>
-            <option value="Pagada">Pagada</option>
-            <option value="Anulada">Anulada</option>
+        <div class="col-xl-2 col-md-6">
+          <label for="document-type" class="form-label">Tipo e-CF</label>
+          <select id="document-type" v-model="filters.encfTipo" class="form-select effi-input">
+            <option value="">Todos</option><option value="31">E31</option><option value="32">E32</option><option value="33">E33</option><option value="34">E34</option><option value="41">E41</option><option value="43">E43</option><option value="44">E44</option><option value="45">E45</option><option value="46">E46</option><option value="47">E47</option>
           </select>
         </div>
-
-        <div class="col-xl-2 col-lg-3 col-md-6">
-          <label class="form-label">Cliente</label>
-          <select v-model="filters.client" class="form-select effi-input">
-            <option value="">Todos</option>
-            <option
-              v-for="client in clients"
-              :key="client"
-              :value="client"
-            >
-              {{ client }}
-            </option>
-          </select>
+        <div class="col-xl-2 col-md-6">
+          <label for="encf" class="form-label">e-NCF</label>
+          <input id="encf" v-model.trim="filters.encf" class="form-control effi-input" placeholder="E310000000001">
         </div>
-
-        <div class="col-xl-2 col-lg-6 col-md-6">
-          <label class="form-label">Tipo comprobante</label>
-          <select v-model="filters.documentType" class="form-select effi-input">
-            <option value="">Todos</option>
-            <option value="Factura electrónica">Factura electrónica</option>
-            <option value="Factura de consumo">Factura de consumo</option>
-            <option value="Crédito fiscal">Crédito fiscal</option>
-            <option value="Gubernamental">Gubernamental</option>
-          </select>
+        <div class="col-xl-2 col-md-6">
+          <label for="buyer-rnc" class="form-label">RNC comprador</label>
+          <input id="buyer-rnc" v-model.trim="filters.rncComprador" class="form-control effi-input" placeholder="Ej. 131234567">
         </div>
-
-        <div class="col-xl-2 col-lg-6 col-md-6">
-          <label class="form-label">Fecha</label>
-          <input v-model="filters.date" type="date" class="form-control effi-input" />
+        <div class="col-xl-2 col-md-6">
+          <label for="fiscal-status" class="form-label">Estado exacto</label>
+          <input id="fiscal-status" v-model.trim="filters.estadoEncf" class="form-control effi-input" placeholder="Aceptado">
+        </div>
+        <div class="col-xl-2 col-md-6">
+          <label for="issue-date" class="form-label">Fecha emisión</label>
+          <input id="issue-date" v-model="filters.fechaEmision" type="date" class="form-control effi-input">
+        </div>
+        <div class="col-xl-2 d-flex gap-2">
+          <button class="btn btn-primary flex-grow-1" type="submit" :disabled="loading">Buscar</button>
+          <button class="btn btn-outline-secondary" type="button" :disabled="loading" title="Limpiar filtros" @click="clearFilters"><i class="bi bi-x-lg" /></button>
         </div>
       </div>
-    </div>
+    </form>
 
-    <!-- Table -->
-    <div class="effi-card">
+    <section class="effi-card" aria-labelledby="fiscal-documents-heading">
       <div class="table-header mb-3">
-        <div>
-          <h2>Listado de facturas</h2>
-          <p>
-            Mostrando {{ filteredInvoices.length }} de {{ invoices.length }} facturas registradas.
-          </p>
-        </div>
-
-        <button type="button" class="btn btn-light effi-btn" @click="clearFilters">
-          <i class="bi bi-x-circle me-2"></i>
-          Limpiar filtros
-        </button>
+        <div><h2 id="fiscal-documents-heading">Bandeja fiscal</h2><p>{{ totalItems }} documentos encontrados.</p></div>
+        <button class="btn btn-light" type="button" :disabled="loading" @click="loadDocuments"><i class="bi bi-arrow-clockwise me-2" />Actualizar</button>
       </div>
 
-      <div class="table-responsive">
-        <table class="table effi-table align-middle">
-          <thead>
-            <tr>
-              <th>No. Factura</th>
-              <th>Cliente</th>
-              <th>Fecha</th>
-              <th>e-CF / Comprobante</th>
-              <th class="text-end">Total</th>
-              <th>Estado</th>
-              <th class="text-end">Acciones</th>
-            </tr>
-          </thead>
-
+      <div v-if="error" class="alert alert-danger d-flex justify-content-between align-items-center" role="alert">
+        <span>{{ error }}</span><button class="btn btn-sm btn-outline-danger" type="button" @click="loadDocuments">Reintentar</button>
+      </div>
+      <div v-else-if="loading" class="state-panel"><span class="spinner-border text-primary" aria-hidden="true" /><strong>Cargando documentos fiscales…</strong></div>
+      <div v-else-if="!documents.length" class="state-panel"><i class="bi bi-inbox" /><strong>No hay documentos con estos filtros</strong><span>Prueba con otros criterios o emite una nueva factura.</span></div>
+      <div v-else class="table-responsive paginated-table-viewport">
+        <table class="table effi-table align-middle mb-0">
+          <thead><tr><th>e-NCF</th><th>Comprador</th><th>Emisión</th><th class="text-end">Total</th><th>Estado</th><th>Ambiente</th><th class="text-end">Acción</th></tr></thead>
           <tbody>
-            <tr v-for="invoice in filteredInvoices" :key="invoice.id">
-              <td>
-                <button type="button" class="link-button" @click="goToInvoiceDetail(invoice.id)">
-                  {{ invoice.number }}
-                </button>
-
-                <div class="text-helper">
-                  {{ invoice.documentType }}
-                </div>
-              </td>
-
-              <td>
-                <div class="client-name">{{ invoice.client.name }}</div>
-                <div class="text-helper">RNC: {{ invoice.client.rnc }}</div>
-              </td>
-
-              <td>
-                <div class="date-value">{{ invoice.issueDate }}</div>
-                <div class="text-helper">{{ invoice.time }}</div>
-              </td>
-
-              <td>
-                <div class="ecf-value">{{ invoice.ecf }}</div>
-                <div class="text-helper">{{ invoice.documentType }}</div>
-              </td>
-
-              <td class="text-end fw-semibold">
-                {{ formatCurrency(invoice.total) }}
-                <div class="text-helper">{{ invoice.currency }}</div>
-              </td>
-
-              <td>
-                <span class="status-badge" :class="getStatusClass(invoice.status)">
-                  <i v-if="invoice.status === 'Borrador'" class="bi bi-circle-fill"></i>
-                  {{ invoice.status }}
-                </span>
-              </td>
-
+            <tr v-for="document in documents" :key="document.id">
+              <td><strong>{{ document.encf || 'Sin e-NCF' }}</strong><small>E{{ document.encfTipo }} · ID {{ document.id }}</small></td>
+              <td><span>{{ document.rncComprador || document.idExtranjero || 'No informado' }}</span><small>{{ document.correoComprador || 'Sin correo' }}</small></td>
+              <td><span>{{ formatDate(document.fechaEmision) }}</span><small>Firma: {{ formatDate(document.fechaFirma) }}</small></td>
+              <td class="text-end fw-semibold">{{ formatMoney(document.montoTotal) }}</td>
+              <td><span class="status-badge" :class="statusClass(document.estadoEncf)">{{ document.estadoEncf || 'Sin estado' }}</span><small v-if="document.mensaje">{{ document.mensaje }}</small></td>
+              <td>{{ document.ambienteTrabajo || 'No informado' }}</td>
               <td class="text-end">
-                <div class="action-buttons">
-                  <button
-                    type="button"
-                    class="action-btn"
-                    title="Ver detalle"
-                    @click="goToInvoiceDetail(invoice.id)"
-                  >
-                    <i class="bi bi-eye"></i>
-                  </button>
-
-                  <button
-                    type="button"
-                    class="action-btn"
-                    title="Editar"
-                    :disabled="invoice.status === 'Anulada' || invoice.status === 'Pagada'"
-                    @click="editInvoice(invoice)"
-                  >
-                    <i class="bi bi-pencil-square"></i>
-                  </button>
-
-                  <button
-                    type="button"
-                    class="action-btn"
-                    title="Imprimir"
-                    @click="printInvoice(invoice)"
-                  >
-                    <i class="bi bi-printer"></i>
-                  </button>
-
-                  <div class="dropdown d-inline-block">
-                    <button
-                      type="button"
-                      class="action-btn"
-                      data-bs-toggle="dropdown"
-                      aria-expanded="false"
-                      title="Más opciones"
-                    >
-                      <i class="bi bi-three-dots-vertical"></i>
-                    </button>
-
-                    <ul class="dropdown-menu dropdown-menu-end">
-                      <li>
-                        <button class="dropdown-item" type="button" @click="downloadPdf(invoice)">
-                          <i class="bi bi-file-earmark-pdf me-2"></i>
-                          Descargar PDF
-                        </button>
-                      </li>
-
-                      <li>
-                        <button class="dropdown-item" type="button" @click="sendEmail(invoice)">
-                          <i class="bi bi-envelope me-2"></i>
-                          Enviar por correo
-                        </button>
-                      </li>
-
-                      <li>
-                        <button
-                          class="dropdown-item"
-                          type="button"
-                          :disabled="!canGenerateCreditNote(invoice)"
-                          @click="goToCreditNote(invoice)"
-                        >
-                          <i class="bi bi-file-earmark-minus me-2"></i>
-                          Generar nota de crédito
-                        </button>
-                      </li>
-
-                      <li><hr class="dropdown-divider" /></li>
-
-                      <li>
-                        <button
-                          class="dropdown-item text-danger"
-                          type="button"
-                          :disabled="invoice.status === 'Anulada'"
-                          @click="voidInvoice(invoice)"
-                        >
-                          <i class="bi bi-x-octagon me-2"></i>
-                          Anular factura
-                        </button>
-                      </li>
-                    </ul>
-                  </div>
-                </div>
-              </td>
-            </tr>
-
-            <tr v-if="filteredInvoices.length === 0">
-              <td colspan="7">
-                <div class="empty-state">
-                  <div class="empty-icon">
-                    <i class="bi bi-receipt"></i>
-                  </div>
-
-                  <h3>No se encontraron facturas</h3>
-                  <p>Prueba cambiando los filtros o revisando el criterio de búsqueda.</p>
-                </div>
+                <button class="btn btn-sm btn-outline-primary" type="button" :disabled="!canDownload(document) || Boolean(downloadingEncf)" @click="downloadDocument(document)">
+                  <span v-if="downloadingEncf === document.encf" class="spinner-border spinner-border-sm" /><i v-else class="bi bi-file-earmark-pdf" /><span class="ms-2">PDF</span>
+                </button>
               </td>
             </tr>
           </tbody>
         </table>
       </div>
 
-      <!-- Footer / pagination visual -->
-      <div class="table-footer">
-        <span>
-          Mostrando 1 a {{ filteredInvoices.length }} de {{ invoices.length }} registros
-        </span>
-
-        <div class="pagination-lite">
-          <button type="button" class="page-btn" disabled>
-            <i class="bi bi-chevron-left"></i>
-          </button>
-
-          <button type="button" class="page-btn active">1</button>
-          <button type="button" class="page-btn">2</button>
-          <button type="button" class="page-btn">3</button>
-
-          <button type="button" class="page-btn">
-            <i class="bi bi-chevron-right"></i>
-          </button>
-        </div>
-      </div>
-    </div>
-  </div>
+      <CommonPaginationControls v-if="!loading && !error && documents.length" :current-page="pageNumber" :total-pages="totalPages" aria-label="Paginación fiscal" @change="changePage" />
+    </section>
+  </main>
 </template>
 
-<script setup lang="ts">
-interface InvoiceClient {
-  name: string
-  rnc: string
-}
-
-type InvoiceStatus = 'Borrador' | 'Emitida' | 'Pendiente' | 'Pagada' | 'Anulada'
-
-interface Invoice {
-  id: number
-  number: string
-  ecf: string
-  client: InvoiceClient
-  issueDate: string
-  dateValue: string
-  time: string
-  documentType: string
-  total: number
-  currency: string
-  status: InvoiceStatus
-}
-
-const filters = reactive({
-  search: '',
-  status: '',
-  client: '',
-  documentType: '',
-  date: '',
-})
-
-const invoices = ref<Invoice[]>([
-  {
-    id: 128,
-    number: 'FAC-000128',
-    ecf: 'E310000000001',
-    client: {
-      name: 'Distribuidora del Norte SRL',
-      rnc: '131203123',
-    },
-    issueDate: '31/05/2024',
-    dateValue: '2024-05-31',
-    time: '10:45 a. m.',
-    documentType: 'Factura electrónica',
-    total: 18560,
-    currency: 'DOP',
-    status: 'Emitida',
-  },
-  {
-    id: 127,
-    number: 'FAC-000127',
-    ecf: 'E310000000002',
-    client: {
-      name: 'Comercializadora Garza SRL',
-      rnc: '130908071',
-    },
-    issueDate: '30/05/2024',
-    dateValue: '2024-05-30',
-    time: '04:15 p. m.',
-    documentType: 'Crédito fiscal',
-    total: 9850,
-    currency: 'DOP',
-    status: 'Pendiente',
-  },
-  {
-    id: 126,
-    number: 'FAC-000126',
-    ecf: 'E310000000003',
-    client: {
-      name: 'Servicios Integrales MX SRL',
-      rnc: '131102035',
-    },
-    issueDate: '29/05/2024',
-    dateValue: '2024-05-29',
-    time: '11:30 a. m.',
-    documentType: 'Factura electrónica',
-    total: 32400,
-    currency: 'DOP',
-    status: 'Pagada',
-  },
-  {
-    id: 125,
-    number: 'FAC-000125',
-    ecf: 'E310000000004',
-    client: {
-      name: 'Constructora Horizonte SRL',
-      rnc: '130614922',
-    },
-    issueDate: '28/05/2024',
-    dateValue: '2024-05-28',
-    time: '09:20 a. m.',
-    documentType: 'Crédito fiscal',
-    total: 25760,
-    currency: 'DOP',
-    status: 'Pagada',
-  },
-  {
-    id: 124,
-    number: 'FAC-000124',
-    ecf: 'E310000000005',
-    client: {
-      name: 'Importaciones del Caribe SRL',
-      rnc: '130709152',
-    },
-    issueDate: '27/05/2024',
-    dateValue: '2024-05-27',
-    time: '03:05 p. m.',
-    documentType: 'Factura electrónica',
-    total: 12300,
-    currency: 'DOP',
-    status: 'Pendiente',
-  },
-  {
-    id: 123,
-    number: 'FAC-000123',
-    ecf: 'E310000000006',
-    client: {
-      name: 'Tecnología Avanzada SRL',
-      rnc: '130801012',
-    },
-    issueDate: '26/05/2024',
-    dateValue: '2024-05-26',
-    time: '02:40 p. m.',
-    documentType: 'Factura electrónica',
-    total: 45900.5,
-    currency: 'DOP',
-    status: 'Emitida',
-  },
-  {
-    id: 122,
-    number: 'FAC-000122',
-    ecf: 'E310000000007',
-    client: {
-      name: 'Soluciones Empresariales SRL',
-      rnc: '131605097',
-    },
-    issueDate: '25/05/2024',
-    dateValue: '2024-05-25',
-    time: '10:10 a. m.',
-    documentType: 'Factura de consumo',
-    total: 7250,
-    currency: 'DOP',
-    status: 'Anulada',
-  },
-  {
-    id: 121,
-    number: 'FAC-000121',
-    ecf: 'E310000000008',
-    client: {
-      name: 'Ferretería Central SRL',
-      rnc: '131445789',
-    },
-    issueDate: '24/05/2024',
-    dateValue: '2024-05-24',
-    time: '01:28 p. m.',
-    documentType: 'Factura electrónica',
-    total: 16890,
-    currency: 'DOP',
-    status: 'Borrador',
-  },
-])
-
-const clients = computed(() => {
-  return [...new Set(invoices.value.map((invoice) => invoice.client.name))]
-})
-
-const filteredInvoices = computed(() => {
-  const search = filters.search.trim().toLowerCase()
-
-  return invoices.value.filter((invoice) => {
-    const matchesSearch =
-      !search ||
-      invoice.number.toLowerCase().includes(search) ||
-      invoice.ecf.toLowerCase().includes(search) ||
-      invoice.client.name.toLowerCase().includes(search) ||
-      invoice.client.rnc.toLowerCase().includes(search)
-
-    const matchesStatus = !filters.status || invoice.status === filters.status
-    const matchesClient = !filters.client || invoice.client.name === filters.client
-    const matchesDocumentType = !filters.documentType || invoice.documentType === filters.documentType
-    const matchesDate = !filters.date || invoice.dateValue === filters.date
-
-    return matchesSearch && matchesStatus && matchesClient && matchesDocumentType && matchesDate
-  })
-})
-
-function formatCurrency(value: number) {
-  return new Intl.NumberFormat('es-DO', {
-    style: 'currency',
-    currency: 'DOP',
-    minimumFractionDigits: 2,
-    maximumFractionDigits: 2,
-  }).format(value)
-}
-
-function getStatusClass(status: InvoiceStatus) {
-  const classes: Record<InvoiceStatus, string> = {
-    Borrador: 'status-draft',
-    Emitida: 'status-issued',
-    Pendiente: 'status-pending',
-    Pagada: 'status-success',
-    Anulada: 'status-void',
-  }
-
-  return classes[status]
-}
-
-function clearFilters() {
-  filters.search = ''
-  filters.status = ''
-  filters.client = ''
-  filters.documentType = ''
-  filters.date = ''
-}
-
-function goToCreateInvoice() {
-  navigateTo('/admin/billing/sale')
-}
-
-function goToInvoiceDetail(id: number) {
-  navigateTo(`/admin/billing/${id}`)
-}
-
-function goToCreditNote(invoice: Invoice) {
-  navigateTo(`/admin/billing/${invoice.id}/credit-note`)
-}
-
-function canGenerateCreditNote(invoice: Invoice) {
-  return invoice.status !== 'Borrador' && invoice.status !== 'Anulada'
-}
-
-function exportInvoices() {
-  console.log('Exportando facturas', filteredInvoices.value)
-}
-
-function editInvoice(invoice: Invoice) {
-  console.log('Editar factura', invoice)
-}
-
-function downloadPdf(invoice: Invoice) {
-  console.log('Descargar PDF', invoice)
-}
-
-function printInvoice(invoice: Invoice) {
-  console.log('Imprimir factura', invoice)
-  window.print()
-}
-
-function sendEmail(invoice: Invoice) {
-  console.log('Enviar factura por correo', invoice)
-}
-
-function voidInvoice(invoice: Invoice) {
-  console.log('Anular factura', invoice)
-}
-</script>
-
 <style scoped>
-.billing-page {
-  min-height: 100vh;
-  padding: 1.5rem;
-  background: #f5f7fb;
-  color: #111827;
-}
-
-.page-header {
-  display: flex;
-  align-items: flex-start;
-  justify-content: space-between;
-  gap: 1.5rem;
-}
-
-.breadcrumb-line {
-  display: flex;
-  align-items: center;
-  gap: 0.5rem;
-  color: #667085;
-  font-size: 0.84rem;
-}
-
-.breadcrumb-line i {
-  font-size: 0.72rem;
-  color: #98a2b3;
-}
-
-.page-title {
-  font-size: 1.8rem;
-  line-height: 1.2;
-  font-weight: 700;
-  color: #101828;
-  margin-bottom: 0.35rem;
-}
-
-.page-subtitle {
-  color: #667085;
-  margin-bottom: 0;
-}
-
-.header-actions {
-  display: flex;
-  align-items: center;
-  justify-content: flex-end;
-  gap: 0.75rem;
-  flex-wrap: wrap;
-}
-
-.effi-btn,
-.effi-btn-primary {
-  min-height: 44px;
-  border-radius: 10px;
-  padding-inline: 1rem;
-  font-weight: 600;
-  box-shadow: none;
-}
-
-.effi-card {
-  background: #fff;
-  border: 1px solid #e5eaf2;
-  border-radius: 16px;
-  box-shadow: none;
-  padding: 1.35rem;
-}
-
-.metric-card {
-  display: flex;
-  align-items: center;
-  gap: 1rem;
-  min-height: 118px;
-}
-
-.metric-icon {
-  width: 46px;
-  height: 46px;
-  flex: 0 0 46px;
-  border-radius: 14px;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  font-size: 1.25rem;
-}
-
-.metric-blue {
-  color: #0d6efd;
-  background: #eef5ff;
-}
-
-.metric-warning {
-  color: #b45309;
-  background: #fff3d6;
-}
-
-.metric-success {
-  color: #16a34a;
-  background: #eaf8ee;
-}
-
-.metric-purple {
-  color: #6941c6;
-  background: #f0e9ff;
-}
-
-.metric-label {
-  display: block;
-  color: #667085;
-  font-size: 0.84rem;
-  margin-bottom: 0.15rem;
-}
-
-.metric-value {
-  display: block;
-  color: #101828;
-  font-size: 1.35rem;
-  font-weight: 750;
-  line-height: 1.2;
-}
-
-.metric-helper {
-  display: block;
-  margin-top: 0.3rem;
-  font-size: 0.78rem;
-}
-
-.form-label {
-  color: #344054;
-  font-weight: 600;
-  font-size: 0.84rem;
-  margin-bottom: 0.45rem;
-}
-
-.effi-input {
-  border: 1px solid #d9e1ec;
-  border-radius: 10px;
-  min-height: 44px;
-  color: #101828;
-  box-shadow: none;
-}
-
-.effi-input:focus {
-  border-color: #0d6efd;
-  box-shadow: 0 0 0 0.16rem rgba(13, 110, 253, 0.08);
-}
-
-.input-icon {
-  position: relative;
-}
-
-.input-icon.left i {
-  position: absolute;
-  left: 0.9rem;
-  top: 50%;
-  transform: translateY(-50%);
-  color: #667085;
-  pointer-events: none;
-}
-
-.input-with-left-icon {
-  padding-left: 2.45rem;
-}
-
-.table-header {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 1rem;
-}
-
-.table-header h2 {
-  color: #101828;
-  font-size: 1rem;
-  font-weight: 700;
-  margin-bottom: 0.2rem;
-}
-
-.table-header p {
-  color: #667085;
-  font-size: 0.86rem;
-  margin-bottom: 0;
-}
-
-.effi-table {
-  margin-bottom: 0;
-}
-
-.effi-table thead th {
-  background: #f8fafc;
-  color: #667085;
-  font-size: 0.78rem;
-  font-weight: 700;
-  border-bottom: 1px solid #e5eaf2;
-  padding: 0.85rem;
-  white-space: nowrap;
-}
-
-.effi-table tbody td {
-  color: #101828;
-  font-size: 0.88rem;
-  border-bottom: 1px solid #edf0f5;
-  padding: 0.9rem 0.85rem;
-  vertical-align: middle;
-}
-
-.effi-table tbody tr:last-child td {
-  border-bottom: none;
-}
-
-.link-button {
-  border: 0;
-  padding: 0;
-  background: transparent;
-  color: #0d6efd;
-  font-weight: 700;
-  text-align: left;
-}
-
-.link-button:hover {
-  text-decoration: underline;
-}
-
-.client-name,
-.date-value,
-.ecf-value {
-  color: #101828;
-  font-weight: 600;
-}
-
-.text-helper {
-  color: #667085;
-  font-size: 0.76rem;
-  margin-top: 0.15rem;
-}
-
-.status-badge {
-  display: inline-flex;
-  align-items: center;
-  gap: 0.35rem;
-  padding: 0.42rem 0.7rem;
-  border-radius: 8px;
-  font-size: 0.76rem;
-  font-weight: 700;
-  line-height: 1;
-  white-space: nowrap;
-}
-
-.status-badge i {
-  font-size: 0.45rem;
-}
-
-.status-draft {
-  color: #b45309;
-  background: #fff3d6;
-}
-
-.status-issued {
-  color: #0d6efd;
-  background: #e9f2ff;
-}
-
-.status-pending {
-  color: #b45309;
-  background: #fff3d6;
-}
-
-.status-success {
-  color: #16a34a;
-  background: #eaf8ee;
-}
-
-.status-void {
-  color: #667085;
-  background: #f2f4f7;
-}
-
-.action-buttons {
-  display: inline-flex;
-  align-items: center;
-  gap: 0.35rem;
-}
-
-.action-btn {
-  width: 34px;
-  height: 34px;
-  border: 1px solid #d9e1ec;
-  border-radius: 9px;
-  background: #fff;
-  color: #667085;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  transition: 0.18s ease;
-}
-
-.action-btn:hover:not(:disabled) {
-  color: #0d6efd;
-  border-color: #b9d3ff;
-  background: #f3f8ff;
-}
-
-.action-btn:disabled {
-  opacity: 0.45;
-  cursor: not-allowed;
-}
-
-.dropdown-menu {
-  border: 1px solid #e5eaf2;
-  border-radius: 12px;
-  box-shadow: 0 12px 30px rgba(16, 24, 40, 0.08);
-  padding: 0.45rem;
-}
-
-.dropdown-item {
-  border-radius: 8px;
-  font-size: 0.88rem;
-}
-
-.empty-state {
-  padding: 3rem 1rem;
-  text-align: center;
-}
-
-.empty-icon {
-  width: 52px;
-  height: 52px;
-  margin: 0 auto 1rem;
-  border-radius: 16px;
-  color: #0d6efd;
-  background: #eef5ff;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  font-size: 1.4rem;
-}
-
-.empty-state h3 {
-  font-size: 1rem;
-  color: #101828;
-  font-weight: 700;
-  margin-bottom: 0.35rem;
-}
-
-.empty-state p {
-  color: #667085;
-  margin-bottom: 0;
-}
-
-.table-footer {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 1rem;
-  padding-top: 1rem;
-  border-top: 1px solid #edf0f5;
-  color: #667085;
-  font-size: 0.84rem;
-}
-
-.pagination-lite {
-  display: flex;
-  align-items: center;
-  gap: 0.35rem;
-}
-
-.page-btn {
-  min-width: 34px;
-  height: 34px;
-  border: 1px solid #d9e1ec;
-  border-radius: 9px;
-  background: #fff;
-  color: #344054;
-  font-weight: 600;
-}
-
-.page-btn.active {
-  color: #fff;
-  background: #0d6efd;
-  border-color: #0d6efd;
-}
-
-.page-btn:disabled {
-  color: #98a2b3;
-  background: #f8fafc;
-}
-
-@media (max-width: 991.98px) {
-  .page-header,
-  .table-header,
-  .table-footer {
-    flex-direction: column;
-    align-items: flex-start;
-  }
-
-  .header-actions {
-    width: 100%;
-    justify-content: flex-start;
-  }
-}
-
-@media (max-width: 575.98px) {
-  .billing-page {
-    padding: 1rem;
-  }
-
-  .page-title {
-    font-size: 1.45rem;
-  }
-
-  .header-actions {
-    display: grid;
-    grid-template-columns: 1fr;
-    width: 100%;
-  }
-
-  .effi-btn,
-  .effi-btn-primary {
-    width: 100%;
-  }
-
-  .metric-card {
-    min-height: auto;
-  }
-
-  .pagination-lite {
-    flex-wrap: wrap;
-  }
-}
+.billing-page{min-height:100vh;padding:1.5rem;background:#f5f7fb;color:#101828}.page-header,.table-header,.pagination-wrap{display:flex;align-items:center;justify-content:space-between;gap:1rem}.breadcrumb-line{display:flex;align-items:center;gap:.5rem;color:#667085;font-size:.84rem}.breadcrumb-line i{font-size:.68rem}.page-title{margin:0 0 .35rem;font-size:1.8rem;font-weight:700}.page-subtitle,.table-header p{margin:0;color:#667085}.effi-card{padding:1.3rem;border:1px solid #e5eaf2;border-radius:16px;background:#fff}.effi-btn-primary,.effi-input{min-height:44px;border-radius:10px}.metric-card{display:flex;align-items:center;gap:1rem}.metric-card div{display:flex;flex-direction:column}.metric-card span{color:#667085;font-size:.8rem}.metric-card strong{font-size:1.5rem}.metric-icon{display:grid;width:42px;height:42px;border-radius:12px;font-size:1.1rem;place-items:center}.metric-blue{color:#0d6efd;background:#eef5ff}.metric-success{color:#198754;background:#eaf8ee}.metric-warning{color:#b58105;background:#fff8df}.metric-danger{color:#dc3545;background:#fff0f1}.table-header h2{margin:0 0 .2rem;font-size:1rem}.effi-table th{color:#667085;font-size:.76rem;font-weight:700;white-space:nowrap}.effi-table td{vertical-align:middle}.effi-table td small{display:block;max-width:280px;margin-top:.2rem;color:#667085;font-size:.72rem}.status-badge{display:inline-flex;padding:.32rem .62rem;border-radius:999px;font-size:.73rem;font-weight:700}.status-accepted{color:#157347;background:#eaf8ee}.status-rejected{color:#b02a37;background:#fff0f1}.status-pending{color:#8a6500;background:#fff8df}.state-panel{display:flex;min-height:220px;flex-direction:column;align-items:center;justify-content:center;gap:.65rem;color:#667085;text-align:center}.state-panel>i{font-size:2.5rem;color:#98a2b3}.pagination-wrap{margin-top:1.25rem}.pagination-wrap span{color:#667085;font-size:.84rem}@media(max-width:767.98px){.billing-page{padding:1rem}.page-header,.table-header{align-items:stretch;flex-direction:column}.page-header>a{width:100%;text-align:center}.pagination-wrap{gap:.5rem}}
 </style>

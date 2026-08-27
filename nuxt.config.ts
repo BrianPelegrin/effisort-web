@@ -10,7 +10,7 @@ export default defineNuxtConfig({
 
  runtimeConfig:{
    public: {
-     apiBase: import.meta.env.NUXT_API_BASE || 'https://localhost:7253'
+     apiBase: process.env.NUXT_PUBLIC_API_BASE || process.env.NUXT_API_BASE || 'https://localhost:7253',
    }
  },
 
@@ -46,6 +46,7 @@ export default defineNuxtConfig({
  },
 
  modules: ["@pinia/nuxt"],
+ css: ["~/assets/css/admin-lists.css"],
 });
 /*
  <link rel="stylesheet" href="/assets/css/bootstrap.min.css" />

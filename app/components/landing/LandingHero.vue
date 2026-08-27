@@ -4,7 +4,7 @@
       <div class="row align-items-center g-4">
         <div class="col-lg-6">
           <span class="badge text-bg-light border mb-3">
-            <i class="fas fa-bolt text-warning me-1"></i>
+            <i class="bi bi-lightning-charge-fill text-warning me-1"></i>
             Facturación electrónica simple y profesional
           </span>
 
@@ -20,22 +20,22 @@
 
           <div class="d-flex flex-wrap gap-2 mb-4">
             <a href="#planes" class="btn btn-primary btn-lg">
-              <i class="fas fa-tags me-2"></i>Ver planes
+              <i class="bi bi-tags-fill me-2"></i>Ver planes
             </a>
             <a href="#funcionalidades" class="btn btn-outline-secondary btn-lg">
-              <i class="fas fa-circle-info me-2"></i>Conocer funcionalidades
+              <i class="bi bi-info-circle me-2"></i>Conocer funcionalidades
             </a>
           </div>
 
           <div class="d-flex flex-wrap gap-3 small text-muted">
             <div class="d-flex align-items-center gap-2">
-              <i class="fas fa-circle-check text-success"></i><span>Panel intuitivo</span>
+              <i class="bi bi-check-circle-fill text-success"></i><span>Panel intuitivo</span>
             </div>
             <div class="d-flex align-items-center gap-2">
-              <i class="fas fa-circle-check text-success"></i><span>Clientes + facturas</span>
+              <i class="bi bi-check-circle-fill text-success"></i><span>Clientes + facturas</span>
             </div>
             <div class="d-flex align-items-center gap-2">
-              <i class="fas fa-circle-check text-success"></i><span>Escalable por planes</span>
+              <i class="bi bi-check-circle-fill text-success"></i><span>Escalable por planes</span>
             </div>
           </div>
         </div>

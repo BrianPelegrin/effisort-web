@@ -161,7 +161,7 @@
         </button>
       </div>
 
-      <div class="table-responsive">
+      <div class="table-responsive paginated-table-viewport">
         <table class="table effi-table align-middle">
           <thead>
             <tr>
@@ -177,7 +177,7 @@
           </thead>
 
           <tbody>
-            <tr v-for="note in filteredCreditNotes" :key="note.id">
+            <tr v-for="note in paginatedCreditNotes" :key="note.id">
               <td>
                 <button type="button" class="link-button" @click="goToCreditNoteDetail(note)">
                   {{ note.number }}
@@ -316,26 +316,12 @@
         </table>
       </div>
 
-      <!-- Footer / pagination visual -->
       <div class="table-footer">
         <span>
-          Mostrando 1 a {{ filteredCreditNotes.length }} de {{ creditNotes.length }} registros
+          Mostrando {{ firstVisibleItem }} a {{ lastVisibleItem }} de {{ filteredCreditNotes.length }} registros
         </span>
-
-        <div class="pagination-lite">
-          <button type="button" class="page-btn" disabled>
-            <i class="bi bi-chevron-left"></i>
-          </button>
-
-          <button type="button" class="page-btn active">1</button>
-          <button type="button" class="page-btn">2</button>
-          <button type="button" class="page-btn">3</button>
-
-          <button type="button" class="page-btn">
-            <i class="bi bi-chevron-right"></i>
-          </button>
-        </div>
       </div>
+      <CommonPaginationControls v-if="filteredCreditNotes.length" :current-page="currentPage" :total-pages="totalPages" aria-label="Paginación de notas de crédito" @change="goToPage" />
     </div>
   </div>
 </template>
@@ -373,6 +359,9 @@ const filters = reactive({
   fromDate: '',
   toDate: '',
 })
+
+const PAGE_SIZE = 10
+const currentPage = ref(1)
 
 const creditNotes = ref<CreditNote[]>([
   {
@@ -538,6 +527,26 @@ const filteredCreditNotes = computed(() => {
     return matchesSearch && matchesStatus && matchesType && matchesFromDate && matchesToDate
   })
 })
+
+const totalPages = computed(() => Math.max(1, Math.ceil(filteredCreditNotes.value.length / PAGE_SIZE)))
+const paginatedCreditNotes = computed(() => {
+  const start = (currentPage.value - 1) * PAGE_SIZE
+  return filteredCreditNotes.value.slice(start, start + PAGE_SIZE)
+})
+const firstVisibleItem = computed(() => filteredCreditNotes.value.length ? (currentPage.value - 1) * PAGE_SIZE + 1 : 0)
+const lastVisibleItem = computed(() => Math.min(currentPage.value * PAGE_SIZE, filteredCreditNotes.value.length))
+
+watch(filters, () => {
+  currentPage.value = 1
+}, { deep: true })
+
+watch(totalPages, (pages) => {
+  if (currentPage.value > pages) currentPage.value = pages
+})
+
+function goToPage(page: number) {
+  currentPage.value = Math.min(Math.max(page, 1), totalPages.value)
+}
 
 function formatCurrency(value: number) {
   return new Intl.NumberFormat('es-DO', {

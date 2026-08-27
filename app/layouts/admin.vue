@@ -1,7 +1,14 @@
 <template>
-<div class="wrapper admin-shell" :class="{ sidebar_minimize: isSidebarCollapsed, nav_open: isMobileSidebarOpen }">
+    <div
+      class="wrapper admin-shell"
+      :class="{ sidebar_minimize: isSidebarCollapsed, mobile_sidebar_open: isMobileSidebarOpen }"
+    >
       <!-- Sidebar -->
-      <AdminSidebar @toggle="toggleSidebar" @navigate="closeMobileSidebar" />
+      <AdminSidebar
+        :collapsed="isSidebarCollapsed"
+        @toggle="toggleSidebar"
+        @navigate="closeMobileSidebar"
+      />
       <!-- End Sidebar -->
 
       <button
@@ -17,7 +24,7 @@
 
         <div class="container">
           <div class="page-inner">
-            <NuxtPage />
+            <slot />
           </div>
         </div>
 
@@ -60,10 +67,11 @@ import AdminSidebar from '~/components/layout/AdminSidebar.vue';
 
 const isSidebarCollapsed = ref(false)
 const isMobileSidebarOpen = ref(false)
-const mobileSidebarQuery = '(max-width: 991.5px)'
+const mobileSidebarQuery = '(max-width: 991.98px)'
+let mobileSidebarMedia: MediaQueryList | null = null
 
 function isMobileViewport() {
-  return import.meta.client && window.matchMedia(mobileSidebarQuery).matches
+  return import.meta.client && (mobileSidebarMedia?.matches ?? window.matchMedia(mobileSidebarQuery).matches)
 }
 
 function toggleSidebar() {
@@ -79,12 +87,37 @@ function closeMobileSidebar() {
   isMobileSidebarOpen.value = false
 }
 
-function syncSidebarForViewport() {
-  if (!isMobileViewport()) closeMobileSidebar()
+function syncSidebarForViewport(event?: MediaQueryListEvent) {
+  const isMobile = event?.matches ?? isMobileViewport()
+  if (isMobile) {
+    isSidebarCollapsed.value = false
+    return
+  }
+
+  closeMobileSidebar()
 }
 
-onMounted(() => window.addEventListener('resize', syncSidebarForViewport))
-onBeforeUnmount(() => window.removeEventListener('resize', syncSidebarForViewport))
+function handleEscape(event: KeyboardEvent) {
+  if (event.key === 'Escape') closeMobileSidebar()
+}
+
+watch(isMobileSidebarOpen, (isOpen) => {
+  if (!import.meta.client) return
+  document.body.classList.toggle('admin-sidebar-open', isOpen)
+})
+
+onMounted(() => {
+  mobileSidebarMedia = window.matchMedia(mobileSidebarQuery)
+  syncSidebarForViewport()
+  mobileSidebarMedia.addEventListener('change', syncSidebarForViewport)
+  window.addEventListener('keydown', handleEscape)
+})
+
+onBeforeUnmount(() => {
+  mobileSidebarMedia?.removeEventListener('change', syncSidebarForViewport)
+  window.removeEventListener('keydown', handleEscape)
+  document.body.classList.remove('admin-sidebar-open')
+})
 
 useHead({
   // tagPosition: 'bodyClose' = al final del body (equivalente a tu index.html)
@@ -111,14 +144,71 @@ useHead({
   display: none;
 }
 
-@media screen and (max-width: 991.5px) {
+@media screen and (max-width: 991.98px) {
+  .admin-shell {
+    width: 100%;
+    min-height: 100dvh;
+    height: auto;
+    overflow-x: hidden;
+  }
+
+  .admin-shell :deep(.sidebar) {
+    top: 0;
+    right: auto !important;
+    bottom: 0;
+    left: 0 !important;
+    width: min(265px, calc(100vw - 48px));
+    height: 100dvh;
+    margin: 0;
+    z-index: 1060;
+    background-color: #1a2035;
+    transform: translate3d(-100%, 0, 0) !important;
+    transition: transform 0.3s ease;
+  }
+
+  .admin-shell.mobile_sidebar_open :deep(.sidebar) {
+    transform: translate3d(0, 0, 0) !important;
+  }
+
+  .admin-shell .main-panel {
+    position: relative;
+    width: 100% !important;
+    min-height: 100dvh;
+    height: auto;
+    margin: 0;
+    opacity: 1;
+    visibility: visible;
+    transform: none !important;
+  }
+
+  .admin-shell .main-header {
+    top: 0;
+    right: 0;
+    left: 0;
+    width: 100% !important;
+  }
+
+  .admin-shell .main-panel > .container {
+    margin-top: 0 !important;
+    padding-top: 70px !important;
+  }
+
   .sidebar-backdrop {
     display: block;
     position: fixed;
     inset: 0;
-    z-index: 1000;
+    width: 100vw;
+    height: 100dvh;
+    z-index: 1050;
+    padding: 0;
     border: 0;
-    background: rgba(15, 23, 42, 0.45);
+    border-radius: 0;
+    background-color: rgba(15, 23, 42, 0.45);
+    appearance: none;
   }
+}
+
+:global(body.admin-sidebar-open) {
+  overflow: hidden;
 }
 </style>

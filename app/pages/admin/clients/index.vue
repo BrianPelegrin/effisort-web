@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import type { ProblemDetails, ValidationProblemDetails } from '~/types/auth'
 import type { Client, ClientWrite } from '~/types/client'
+import type { Municipality, Province } from '~/types/location'
 
 interface ApiRequestError {
   status?: number
@@ -47,13 +48,14 @@ const emptyClient = (): ClientWrite => ({
   codigoInternoComprador: null,
   responsablePago: null,
   informacionAdicionalComprador: null,
-  tipoPrecio: null,
-  tipoPago: null,
+  tipoPrecio: 1,
+  tipoPago: 1,
   terminoPago: null,
   activo: true,
 })
 
 const { getClients, getClient, createClient, updateClient, deactivateClient } = useClientsApi()
+const { getProvinces, getMunicipalitiesByProvince } = useLocationsApi()
 const route = useRoute()
 const clients = ref<Client[]>([])
 const loading = ref(true)
@@ -72,6 +74,10 @@ const detailError = ref('')
 const selectedClient = ref<Client | null>(null)
 const statusClient = ref<Client | null>(null)
 const statusError = ref('')
+const provinces = ref<Province[]>([])
+const municipalities = ref<Municipality[]>([])
+const loadingLocations = ref(false)
+const locationError = ref('')
 const formModalElement = ref<HTMLElement | null>(null)
 const detailModalElement = ref<HTMLElement | null>(null)
 const statusModalElement = ref<HTMLElement | null>(null)
@@ -134,7 +140,7 @@ watch(totalPages, (pages) => {
 
 watch(includeInactive, async () => {
   currentPage.value = 1
-  await loadClients()
+  await Promise.all([loadClients(), loadProvinces()])
 })
 
 onMounted(async () => {
@@ -145,8 +151,8 @@ onMounted(async () => {
   detailModalElement.value?.addEventListener('hidden.bs.modal', handleDetailModalHidden)
   statusModalElement.value?.addEventListener('hide.bs.modal', handleStatusModalHide)
   statusModalElement.value?.addEventListener('hidden.bs.modal', handleStatusModalHidden)
-  await loadClients()
-  if (route.query.create === '1') openCreateForm()
+  await Promise.all([loadClients(), loadProvinces()])
+  if (route.query.create === '1') await openCreateForm()
 })
 
 onBeforeUnmount(() => {
@@ -191,6 +197,8 @@ async function openCreateForm() {
   formReturnFocus = document.activeElement instanceof HTMLElement ? document.activeElement : null
   editingClient.value = null
   Object.assign(form, emptyClient())
+  municipalities.value = []
+  if (!provinces.value.length) await loadProvinces()
   formError.value = ''
   showForm.value = true
   await nextTick()
@@ -201,6 +209,8 @@ async function openEditForm(client: Client) {
   formReturnFocus = document.activeElement instanceof HTMLElement ? document.activeElement : null
   editingClient.value = client
   Object.assign(form, toClientWrite(client))
+  if (!provinces.value.length) await loadProvinces()
+  await loadMunicipalities(form.provinciaComprador)
   formError.value = ''
   showForm.value = true
   await nextTick()
@@ -338,6 +348,16 @@ async function saveClient() {
     return
   }
 
+  if (form.provinciaComprador && !/^\d{6}$/.test(form.provinciaComprador.trim())) {
+    formError.value = 'Selecciona una provincia válida.'
+    return
+  }
+
+  if (form.municipioComprador && !/^\d{6}$/.test(form.municipioComprador.trim())) {
+    formError.value = 'Selecciona un municipio válido.'
+    return
+  }
+
   saving.value = true
 
   try {
@@ -450,6 +470,9 @@ function normalizeClientWrite(value: ClientWrite): ClientWrite {
     }
   }
 
+  payload.rncComprador = payload.rncComprador?.replace(/[\s-]/g, '') || null
+  payload.contactoComprador = payload.contactoComprador?.replace(/[\s()-]/g, '') || null
+
   for (const field of ['tipoPrecio', 'tipoPago', 'terminoPago'] as const) {
     const fieldValue = payload[field] as number | string | null | undefined
     Object.assign(payload, {
@@ -460,6 +483,48 @@ function normalizeClientWrite(value: ClientWrite): ClientWrite {
   }
 
   return payload
+}
+
+async function loadProvinces() {
+  loadingLocations.value = true
+  locationError.value = ''
+
+  try {
+    const response = await getProvinces()
+    provinces.value = Array.isArray(response) ? response.filter(province => province.activo !== false) : []
+    if (!provinces.value.length) locationError.value = 'El backend no tiene provincias disponibles en el catálogo.'
+  } catch (caughtError) {
+    provinces.value = []
+    locationError.value = caughtError instanceof Error
+      ? caughtError.message
+      : 'No pudimos cargar las provincias.'
+  } finally {
+    loadingLocations.value = false
+  }
+}
+
+async function loadMunicipalities(provinceCode: string | null) {
+  municipalities.value = []
+  if (!provinceCode) return
+
+  loadingLocations.value = true
+  locationError.value = ''
+
+  try {
+    const response = await getMunicipalitiesByProvince(provinceCode)
+    municipalities.value = Array.isArray(response)
+      ? response.filter(municipality => municipality.activo !== false)
+      : []
+  } catch {
+    locationError.value = 'No pudimos cargar los municipios de la provincia seleccionada.'
+  } finally {
+    loadingLocations.value = false
+  }
+}
+
+async function handleProvinceChange() {
+  form.municipioComprador = null
+  await loadMunicipalities(form.provinciaComprador)
 }
 
 function getErrorStatus(caughtError: unknown) {
@@ -649,7 +714,7 @@ function displayValue(value: string | number | null | undefined) {
       </div>
 
       <template v-else-if="paginatedClients.length">
-        <div class="table-responsive">
+        <div class="table-responsive paginated-table-viewport">
           <table class="table effi-table align-middle">
             <thead>
               <tr>
@@ -724,27 +789,7 @@ function displayValue(value: string | number | null | undefined) {
           </table>
         </div>
 
-        <nav v-if="totalPages > 1" class="pagination-wrap" aria-label="Paginación de clientes">
-          <span>Página {{ currentPage }} de {{ totalPages }}</span>
-          <div class="btn-group">
-            <button
-              type="button"
-              class="btn btn-outline-secondary btn-sm"
-              :disabled="currentPage === 1"
-              @click="goToPage(currentPage - 1)"
-            >
-              Anterior
-            </button>
-            <button
-              type="button"
-              class="btn btn-outline-secondary btn-sm"
-              :disabled="currentPage === totalPages"
-              @click="goToPage(currentPage + 1)"
-            >
-              Siguiente
-            </button>
-          </div>
-        </nav>
+        <CommonPaginationControls :current-page="currentPage" :total-pages="totalPages" aria-label="Paginación de clientes" @change="goToPage" />
       </template>
 
       <div v-else class="empty-state">
@@ -773,6 +818,17 @@ function displayValue(value: string | number | null | undefined) {
               <div v-if="formError" class="alert alert-danger" role="alert">
                 <i class="bi bi-exclamation-triangle me-2" />{{ formError }}
               </div>
+              <div v-if="locationError" class="alert alert-warning d-flex align-items-center justify-content-between gap-3" role="alert">
+                <span><i class="bi bi-geo-alt me-2" />{{ locationError }}</span>
+                <button
+                  type="button"
+                  class="btn btn-sm btn-outline-warning flex-shrink-0"
+                  :disabled="loadingLocations"
+                  @click="loadProvinces"
+                >
+                  Reintentar
+                </button>
+              </div>
 
               <section class="form-section">
                 <div class="form-section-title">
@@ -791,6 +847,7 @@ function displayValue(value: string | number | null | undefined) {
                   <div class="col-md-3">
                     <label for="client-rnc" class="form-label">RNC/Cédula</label>
                     <input id="client-rnc" v-model="form.rncComprador" class="form-control" maxlength="11" inputmode="numeric">
+                    <small class="form-text text-muted">Se guardará sin guiones ni espacios.</small>
                   </div>
                   <div class="col-md-3">
                     <label for="client-foreign-id" class="form-label">Identificador extranjero</label>
@@ -819,10 +876,12 @@ function displayValue(value: string | number | null | undefined) {
                   <div class="col-md-6">
                     <label for="client-contact" class="form-label">Contacto</label>
                     <input id="client-contact" v-model="form.contactoComprador" class="form-control" maxlength="80" autocomplete="name">
+                    <small class="form-text text-muted">Se normalizará sin espacios, paréntesis ni guiones.</small>
                   </div>
                   <div class="col-md-6">
                     <label for="client-email" class="form-label">Correo electrónico</label>
                     <input id="client-email" v-model="form.correoComprador" type="email" class="form-control" maxlength="80" autocomplete="email">
+                    <small class="form-text text-muted">Por el momento no se enviará dentro del comprobante fiscal.</small>
                   </div>
                   <div class="col-md-8">
                     <label for="client-address" class="form-label">Dirección</label>
@@ -834,11 +893,44 @@ function displayValue(value: string | number | null | undefined) {
                   </div>
                   <div class="col-md-6">
                     <label for="client-province" class="form-label">Provincia</label>
-                    <input id="client-province" v-model="form.provinciaComprador" class="form-control" maxlength="10">
+                    <select
+                      id="client-province"
+                      v-model="form.provinciaComprador"
+                      class="form-select"
+                      :disabled="loadingLocations"
+                      @change="handleProvinceChange"
+                    >
+                      <option :value="null">Selecciona una provincia</option>
+                      <option
+                        v-if="form.provinciaComprador && !provinces.some(item => item.codigo === form.provinciaComprador)"
+                        :value="form.provinciaComprador"
+                      >
+                        Código actual: {{ form.provinciaComprador }}
+                      </option>
+                      <option v-for="province in provinces" :key="province.id" :value="province.codigo">
+                        {{ province.nombre }} ({{ province.codigo }})
+                      </option>
+                    </select>
                   </div>
                   <div class="col-md-6">
                     <label for="client-municipality" class="form-label">Municipio</label>
-                    <input id="client-municipality" v-model="form.municipioComprador" class="form-control" maxlength="10">
+                    <select
+                      id="client-municipality"
+                      v-model="form.municipioComprador"
+                      class="form-select"
+                      :disabled="loadingLocations || !form.provinciaComprador"
+                    >
+                      <option :value="null">Selecciona un municipio</option>
+                      <option
+                        v-if="form.municipioComprador && !municipalities.some(item => item.codigo === form.municipioComprador)"
+                        :value="form.municipioComprador"
+                      >
+                        Código actual: {{ form.municipioComprador }}
+                      </option>
+                      <option v-for="municipality in municipalities" :key="municipality.id" :value="municipality.codigo">
+                        {{ municipality.nombre }} ({{ municipality.codigo }})
+                      </option>
+                    </select>
                   </div>
                 </div>
               </section>

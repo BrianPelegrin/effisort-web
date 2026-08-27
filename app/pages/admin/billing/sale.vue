@@ -16,18 +16,19 @@
       </div>
 
       <div class="header-actions">
-        <button type="button" class="btn btn-light effi-btn" @click="cancelInvoice">
+        <button type="button" class="btn btn-light effi-btn" :disabled="submitting" @click="cancelInvoice">
           Cancelar
         </button>
 
-        <button type="button" class="btn btn-outline-primary effi-btn" @click="saveDraft">
+        <button type="button" class="btn btn-outline-primary effi-btn" :disabled="submitting" @click="saveDraft">
           <i class="bi bi-save me-2"></i>
           Guardar borrador
         </button>
 
-        <button type="button" class="btn btn-primary effi-btn-primary" @click="emitInvoice">
-          <i class="bi bi-clipboard-check me-2"></i>
-          Revisar factura
+        <button type="button" class="btn btn-primary effi-btn-primary" :disabled="submitting" @click="emitInvoice">
+          <span v-if="submitting" class="spinner-border spinner-border-sm me-2" aria-hidden="true" />
+          <i v-else class="bi bi-clipboard-check me-2"></i>
+          {{ submitting ? 'Emitiendo...' : 'Revisar factura' }}
         </button>
       </div>
     </div>
@@ -43,6 +44,29 @@
     <div v-if="catalogError" class="alert alert-danger d-flex align-items-center justify-content-between gap-3" role="alert">
       <span><i class="bi bi-exclamation-triangle me-2" />{{ catalogError }}</span>
       <button type="button" class="btn btn-sm btn-outline-danger" @click="loadBillingCatalogs">Reintentar catálogos</button>
+    </div>
+    <div v-if="!issuerReady" class="alert alert-warning d-flex align-items-start gap-3" role="alert">
+      <i class="bi bi-building-exclamation mt-1" aria-hidden="true" />
+      <div class="flex-grow-1">
+        <strong>Datos fiscales del emisor no disponibles.</strong>
+        <div>{{ issuerStatusMessage }}</div>
+      </div>
+      <button
+        v-if="auth.profileStatus === 'missing' || auth.profileStatus === 'error'"
+        type="button"
+        class="btn btn-sm btn-outline-warning"
+        @click="reloadIssuerProfile"
+      >
+        Reintentar
+      </button>
+    </div>
+    <div v-if="unknownResult" class="alert alert-warning d-flex align-items-start gap-3" role="alert">
+      <i class="bi bi-question-octagon mt-1" aria-hidden="true" />
+      <div class="flex-grow-1">
+        <strong>El resultado de la última emisión es desconocido.</strong>
+        <div>{{ unknownResult }} No reenvíes la factura sin verificar primero la bandeja fiscal.</div>
+      </div>
+      <NuxtLink to="/admin/billing" class="btn btn-sm btn-outline-warning">Abrir bandeja</NuxtLink>
     </div>
 
     <div class="row g-4">
@@ -132,6 +156,7 @@
                   {{ receiptType.tipo }} - {{ receiptType.ecf }}
                 </option>
               </select>
+              <small class="field-helper">La primera integración permite E31 y E32.</small>
             </div>
 
             <div class="col-md-6">
@@ -143,6 +168,17 @@
                 <option value="">Seleccione una moneda...</option>
                 <option v-for="currency in currencies" :key="currency.id" :value="currency.codigo">
                   {{ currency.codigo }} - {{ currency.descripcion }}
+                </option>
+              </select>
+              <small v-if="invoice.currency !== 'DOP'" class="field-helper text-warning">La emisión fiscal en moneda extranjera todavía no está habilitada.</small>
+            </div>
+
+            <div class="col-md-6">
+              <label class="form-label">Tipo de ingreso <span class="required">*</span></label>
+              <select v-model="invoice.incomeType" class="form-select effi-input" :disabled="loadingCatalogs">
+                <option value="">Seleccione un tipo...</option>
+                <option v-for="incomeType in incomeTypes" :key="incomeType.id" :value="incomeType.codigo">
+                  {{ incomeType.codigo }} - {{ incomeType.descripcion }}
                 </option>
               </select>
             </div>
@@ -163,8 +199,8 @@
           </div>
 
           <div class="info-alert mt-3">
-            <i class="bi bi-info-circle"></i>
-            <span>Modo de preparación: por el momento esta factura no se enviará al backend ni generará un NCF/e-CF.</span>
+            <i class="bi bi-shield-check"></i>
+            <span>La factura se enviará únicamente después de revisar y confirmar. La operación no se reintenta automáticamente.</span>
           </div>
         </div>
 
@@ -397,9 +433,28 @@
               </option>
             </select>
 
+            <label class="form-label mt-3">Tipo de pago <span class="required">*</span></label>
+            <select v-model.number="invoice.paymentType" class="form-select effi-input" :disabled="loadingCatalogs">
+              <option :value="0">Seleccione un tipo...</option>
+              <option v-for="paymentType in paymentTypes" :key="paymentType.id" :value="paymentType.codigo">
+                {{ paymentType.codigo }} - {{ paymentType.nombre }}
+              </option>
+            </select>
+            <small v-if="invoice.paymentType && invoice.paymentType !== 1" class="field-helper text-warning">La primera integración permite emitir únicamente con el tipo de pago 1.</small>
+
+            <template v-if="requiresDueDate">
+              <label class="form-label mt-3">Término de pago</label>
+              <select v-model="invoice.paymentTerm" class="form-select effi-input" :disabled="loadingCatalogs">
+                <option value="">Sin término específico</option>
+                <option v-for="paymentTerm in paymentTerms" :key="paymentTerm.id" :value="paymentTerm.codigo">
+                  {{ paymentTerm.codigo }} - {{ paymentTerm.nombre }}
+                </option>
+              </select>
+            </template>
+
             <div class="helper-note mt-3">
               <i class="bi bi-info-circle"></i>
-              <span>Podrás cambiar o registrar el pago después de emitir.</span>
+              <span>La forma de pago se enviará por el total calculado de la factura.</span>
             </div>
           </div>
 
@@ -455,6 +510,18 @@
                 <i class="bi" :class="hasValidReceiptType ? 'bi-check-lg' : 'bi-circle'"></i>
                 Tipo de comprobante
               </li>
+              <li :class="{ checked: issuerReady }">
+                <i class="bi" :class="issuerReady ? 'bi-check-lg' : 'bi-circle'"></i>
+                Datos del emisor
+              </li>
+              <li :class="{ checked: hasValidIncomeType }">
+                <i class="bi" :class="hasValidIncomeType ? 'bi-check-lg' : 'bi-circle'"></i>
+                Tipo de ingreso
+              </li>
+              <li :class="{ checked: hasValidPaymentType }">
+                <i class="bi" :class="hasValidPaymentType ? 'bi-check-lg' : 'bi-circle'"></i>
+                Tipo de pago
+              </li>
               <li :class="{ checked: hasValidCurrency }">
                 <i class="bi" :class="hasValidCurrency ? 'bi-check-lg' : 'bi-circle'"></i>
                 Moneda
@@ -470,6 +537,10 @@
               <li v-if="requiresExchangeRate" :class="{ checked: hasValidExchangeRate }">
                 <i class="bi" :class="hasValidExchangeRate ? 'bi-check-lg' : 'bi-circle'"></i>
                 Tasa de cambio
+              </li>
+              <li :class="{ checked: invoice.discount === 0 }">
+                <i class="bi" :class="invoice.discount === 0 ? 'bi-check-lg' : 'bi-circle'"></i>
+                Sin descuento fiscal pendiente
               </li>
             </ul>
           </div>
@@ -624,13 +695,114 @@
         </div>
       </div>
     </Teleport>
+
+    <Teleport to="body">
+      <div id="invoice-review-modal" ref="reviewModalElement" class="modal fade" tabindex="-1" aria-labelledby="invoice-review-title" aria-hidden="true">
+        <div class="modal-dialog modal-lg modal-dialog-centered">
+          <div class="modal-content catalog-bootstrap-modal">
+            <div class="modal-header product-modal-header">
+              <div>
+                <span class="product-modal-eyebrow">Confirmación fiscal</span>
+                <h2 id="invoice-review-title">Revisar antes de emitir</h2>
+                <p>La secuencia fiscal puede consumirse aunque el proceso falle posteriormente.</p>
+              </div>
+              <button type="button" class="btn-close" :disabled="submitting" data-bs-dismiss="modal" aria-label="Cerrar" />
+            </div>
+            <div class="modal-body product-modal-body">
+              <div class="row g-3 fiscal-review-grid">
+                <div class="col-sm-6"><span>Comprobante</span><strong>E{{ invoice.documentType }} · {{ selectedReceiptType?.ecf }}</strong></div>
+                <div class="col-sm-6"><span>Cliente</span><strong>{{ selectedClient?.razonSocialComprador }}</strong></div>
+                <div class="col-sm-6"><span>Fecha</span><strong>{{ invoice.issueDate }}</strong></div>
+                <div class="col-sm-6"><span>Líneas</span><strong>{{ invoice.items.length }}</strong></div>
+                <div class="col-sm-6"><span>ITBIS</span><strong>{{ formatCurrency(taxTotal) }}</strong></div>
+                <div class="col-sm-6"><span>Total</span><strong>{{ formatCurrency(grandTotal) }}</strong></div>
+              </div>
+              <div class="alert alert-warning mt-4 mb-0">
+                <i class="bi bi-exclamation-triangle me-2" aria-hidden="true" />
+                No cierres la página ni repitas la operación mientras la factura esté siendo procesada.
+              </div>
+            </div>
+            <div class="modal-footer product-modal-footer">
+              <button type="button" class="btn btn-outline-secondary" :disabled="submitting" data-bs-dismiss="modal">Volver a editar</button>
+              <button type="button" class="btn btn-primary" :disabled="submitting" @click="confirmInvoiceEmission">
+                <span v-if="submitting" class="spinner-border spinner-border-sm me-2" aria-hidden="true" />
+                {{ submitting ? 'Emitiendo...' : 'Emitir factura' }}
+              </button>
+            </div>
+          </div>
+        </div>
+      </div>
+    </Teleport>
+
+    <Teleport to="body">
+      <div id="invoice-result-modal" ref="resultModalElement" class="modal fade" tabindex="-1" aria-labelledby="invoice-result-title" aria-hidden="true">
+        <div class="modal-dialog modal-lg modal-dialog-centered">
+          <div class="modal-content catalog-bootstrap-modal">
+            <div class="modal-header product-modal-header">
+              <div>
+                <span class="product-modal-eyebrow">Resultado fiscal</span>
+                <h2 id="invoice-result-title">{{ resultTitle }}</h2>
+                <p>Resultado informado por la WebAPI y la DGII.</p>
+              </div>
+              <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Cerrar" />
+            </div>
+            <div class="modal-body product-modal-body">
+              <div v-if="fiscalResult" class="fiscal-result-card" :class="`fiscal-result-${fiscalResultStatus}`">
+                <i class="bi" :class="resultIcon" aria-hidden="true" />
+                <div>
+                  <span>{{ fiscalResult.estadoEncf || 'Procesado sin estado concluyente' }}</span>
+                  <strong>{{ fiscalResult.encf || 'e-NCF no informado' }}</strong>
+                  <small>Secuencia utilizada: {{ fiscalResult.secuenciaUtilizada ? 'Sí' : 'No' }}</small>
+                </div>
+              </div>
+
+              <dl v-if="fiscalResult" class="fiscal-result-details mt-4">
+                <div><dt>Código de seguridad</dt><dd>{{ fiscalResult.codigoSeguridad || 'No informado' }}</dd></div>
+                <div><dt>Fecha de firma</dt><dd>{{ fiscalResult.fechaFirma || 'No informada' }}</dd></div>
+              </dl>
+
+              <div v-if="fiscalResult?.mensajes.length" class="alert alert-info mt-4 mb-0">
+                <strong>Mensajes fiscales</strong>
+                <ul class="mb-0 mt-2"><li v-for="message in fiscalResult.mensajes" :key="message">{{ message }}</li></ul>
+              </div>
+            </div>
+            <div class="modal-footer product-modal-footer">
+              <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Cerrar</button>
+              <button v-if="fiscalResult?.encf && canDownloadResultPdf" type="button" class="btn btn-primary" :disabled="downloadingPdf" @click="downloadResultPdf">
+                <span v-if="downloadingPdf" class="spinner-border spinner-border-sm me-2" aria-hidden="true" />
+                <i v-else class="bi bi-file-earmark-pdf me-2" aria-hidden="true" />
+                Descargar PDF
+              </button>
+            </div>
+          </div>
+        </div>
+      </div>
+    </Teleport>
   </div>
 </template>
 
 <script setup lang="ts">
 import type { Article, BillingIndicator } from '~/types/article'
-import type { Currency, PaymentMethod, ReceiptType } from '~/types/billing'
+import type {
+  Currency,
+  IncomeType,
+  PaymentMethod,
+  PaymentTerm,
+  PaymentType,
+  ReceiptType,
+} from '~/types/billing'
 import type { Client } from '~/types/client'
+import type { EcfApiResult, EcfResultStatus } from '~/types/ecf'
+import { ApiError } from '~/utils/api'
+import {
+  buildEcfRequest,
+  calculateInvoice,
+  classifyEcfResult,
+  EcfValidationError,
+  mapCompanyProfileToIssuer,
+  type InvoiceDraft,
+  type IssuerConfiguration,
+} from '~/utils/ecf'
 
 interface InvoiceItem {
   id: number
@@ -665,13 +837,23 @@ const DECIMAL_UNIT_CODES = new Set([
   8, 12, 15, 16, 17, 18, 19, 21, 22, 23, 24, 26, 27, 28, 29, 30,
   33, 37, 39, 41, 42, 51, 52, 53, 55, 56, 58, 59, 60, 61, 62,
 ])
-const SALE_RECEIPT_TYPES = new Set([31, 32, 44, 45, 46])
+const SALE_RECEIPT_TYPES = new Set([31, 32])
 const PENDING_INVOICE_KEY = 'effisort_invoice_pending_client'
 const DRAFT_INVOICE_KEY = 'effisort_invoice_draft'
 
 const { getClients } = useClientsApi()
 const { getArticles } = useArticlesApi()
-const { getPaymentMethods, getCurrencies, getReceiptTypes, getBillingIndicators } = useBillingCatalogsApi()
+const {
+  getPaymentMethods,
+  getCurrencies,
+  getReceiptTypes,
+  getBillingIndicators,
+  getIncomeTypes,
+  getPaymentTypes,
+  getPaymentTerms,
+} = useBillingCatalogsApi()
+const { emitInvoice: sendInvoice, downloadPdf, submitting } = useEcfApi()
+const auth = useAuthStore()
 const showOptional = ref(false)
 const showClientModal = ref(false)
 const clientSearch = ref('')
@@ -685,6 +867,10 @@ const productSearchInput = ref<HTMLInputElement | null>(null)
 const productSelectorButton = ref<HTMLButtonElement | null>(null)
 const productModalElement = ref<HTMLElement | null>(null)
 let productModalInstance: BootstrapModalInstance | null = null
+const reviewModalElement = ref<HTMLElement | null>(null)
+const resultModalElement = ref<HTMLElement | null>(null)
+let reviewModalInstance: BootstrapModalInstance | null = null
+let resultModalInstance: BootstrapModalInstance | null = null
 const loadingClients = ref(true)
 const loadingArticles = ref(true)
 const loadingCatalogs = ref(true)
@@ -697,6 +883,13 @@ const paymentMethods = ref<PaymentMethod[]>([])
 const currencies = ref<Currency[]>([])
 const receiptTypes = ref<ReceiptType[]>([])
 const billingIndicators = ref<BillingIndicator[]>([])
+const incomeTypes = ref<IncomeType[]>([])
+const paymentTypes = ref<PaymentType[]>([])
+const paymentTerms = ref<PaymentTerm[]>([])
+const fiscalResult = ref<EcfApiResult | null>(null)
+const fiscalResultStatus = ref<EcfResultStatus>('processed')
+const unknownResult = ref('')
+const downloadingPdf = ref(false)
 
 const invoice = reactive({
   clientId: '',
@@ -705,7 +898,10 @@ const invoice = reactive({
   documentType: '',
   currency: 'DOP',
   exchangeRate: 1,
+  incomeType: '',
+  paymentType: 0,
   paymentMethod: '',
+  paymentTerm: '',
   discount: 0,
   internalReference: '',
   purchaseOrder: '',
@@ -714,6 +910,10 @@ const invoice = reactive({
   notes: '',
   items: [] as InvoiceItem[],
 })
+
+const issuer = computed<IssuerConfiguration | null>(() => auth.profile
+  ? mapCompanyProfileToIssuer(auth.profile.empresa)
+  : null)
 
 onMounted(async () => {
   restorePendingInvoice()
@@ -733,16 +933,34 @@ onBeforeUnmount(() => {
   clientModalInstance = null
   productModalInstance?.dispose()
   productModalInstance = null
+  reviewModalInstance?.dispose()
+  reviewModalInstance = null
+  resultModalInstance?.dispose()
+  resultModalInstance = null
 })
 
 const selectedClient = computed(() => clients.value.find(client => client.id === invoice.clientId))
 const selectedReceiptType = computed(() => receiptTypes.value.find(item => String(item.tipo) === invoice.documentType))
 
 const hasClient = computed(() => !!invoice.clientId)
+const issuerReady = computed(() => Boolean(
+  issuer.value?.rnc
+  && issuer.value.businessName,
+))
+const issuerStatusMessage = computed(() => {
+  if (auth.profileStatus === 'loading') return 'Estamos cargando la empresa asociada a tu sesión.'
+  if (auth.profileStatus === 'missing') return auth.profileError || 'El usuario no tiene una empresa configurada.'
+  if (auth.profileStatus === 'error') return auth.profileError || 'No pudimos consultar la empresa de la sesión.'
+  if (issuer.value) return 'La empresa debe tener RNC y razón social para poder emitir.'
+  return 'No se ha cargado la empresa correspondiente a la sesión.'
+})
 const hasValidReceiptType = computed(() => receiptTypes.value.some(item => String(item.tipo) === invoice.documentType))
-const hasValidCurrency = computed(() => currencies.value.some(item => item.codigo === invoice.currency))
+const hasValidCurrency = computed(() => invoice.currency === 'DOP' && currencies.value.some(item => item.codigo === invoice.currency))
+const hasValidIncomeType = computed(() => incomeTypes.value.some(item => item.codigo === invoice.incomeType))
+const hasValidPaymentType = computed(() => invoice.paymentType === 1
+  && paymentTypes.value.some(item => item.codigo === invoice.paymentType))
 const hasValidPaymentMethod = computed(() => paymentMethods.value.some(item => item.codigo === invoice.paymentMethod))
-const requiresDueDate = computed(() => invoice.paymentMethod === '4')
+const requiresDueDate = computed(() => invoice.paymentType === 2)
 const hasValidDates = computed(() => Boolean(
   invoice.issueDate
   && (!requiresDueDate.value || invoice.dueDate)
@@ -755,6 +973,26 @@ const hasValidExchangeRate = computed(() => !requiresExchangeRate.value
 const hasValidItems = computed(() => {
   return invoice.items.length > 0 && invoice.items.every(isValidItem)
 })
+
+const invoiceDraft = computed<InvoiceDraft>(() => ({
+  documentType: invoice.documentType,
+  issueDate: invoice.issueDate,
+  dueDate: invoice.dueDate,
+  incomeType: invoice.incomeType,
+  paymentType: invoice.paymentType,
+  paymentMethod: invoice.paymentMethod,
+  paymentTerm: invoice.paymentTerm,
+  currency: invoice.currency,
+  discount: Number(invoice.discount || 0),
+  internalReference: invoice.internalReference,
+  purchaseOrder: invoice.purchaseOrder,
+  notes: invoice.notes,
+  client: selectedClient.value,
+  items: invoice.items.flatMap((item) => {
+    const article = articleForItem(item)
+    return article ? [{ article, quantity: Number(item.quantity), unitPrice: Number(item.unitPrice) }] : []
+  }),
+}))
 
 const filteredClients = computed(() => {
   const activeClients = clients.value.filter(client => client.activo !== false)
@@ -784,31 +1022,30 @@ const filteredProducts = computed(() => {
   ].some(value => value?.toLocaleLowerCase('es').includes(normalizedSearch)))
 })
 
-const subtotal = computed(() => {
-  return invoice.items.reduce((total, item) => total + getLineSubtotal(item), 0)
+const invoiceCalculation = computed(() => {
+  try {
+    return calculateInvoice(invoiceDraft.value, billingIndicators.value)
+  } catch {
+    return { subtotal: 0, taxableTotal: 0, exemptTotal: 0, nonBillableTotal: 0, taxTotal: 0, total: 0, totals: { montoTotal: 0 } }
+  }
 })
 
-const taxTotal = computed(() => {
-  return invoice.items.reduce((total, item) => {
-    const lineSubtotal = getLineSubtotal(item)
-    return total + lineSubtotal * (taxRateForItem(item) / 100)
-  }, 0)
-})
-
+const subtotal = computed(() => invoiceCalculation.value.subtotal)
+const taxTotal = computed(() => invoiceCalculation.value.taxTotal)
 const grossTotal = computed(() => subtotal.value + taxTotal.value)
 const hasValidDiscount = computed(() => Number.isFinite(Number(invoice.discount))
-  && Number(invoice.discount) >= 0
-  && Number(invoice.discount) <= grossTotal.value)
+  && Number(invoice.discount) === 0)
 
-const grandTotal = computed(() => {
-  return Math.max(grossTotal.value - (Number(invoice.discount) || 0), 0)
-})
+const grandTotal = computed(() => invoiceCalculation.value.total)
 
 const isInvoiceReady = computed(() => Boolean(
   hasClient.value
   && hasValidDates.value
   && hasValidReceiptType.value
   && hasValidCurrency.value
+  && issuerReady.value
+  && hasValidIncomeType.value
+  && hasValidPaymentType.value
   && hasValidPaymentMethod.value
   && hasValidItems.value
   && hasValidDiscount.value
@@ -897,6 +1134,12 @@ function handleClientModalHidden() {
 
 function selectClient(client: Client) {
   invoice.clientId = client.id
+  if (client.tipoPago && paymentTypes.value.some(item => item.codigo === client.tipoPago)) {
+    invoice.paymentType = client.tipoPago
+  }
+  if (client.terminoPago && paymentTerms.value.some(item => item.codigo === String(client.terminoPago))) {
+    invoice.paymentTerm = String(client.terminoPago)
+  }
   closeClientModal()
 }
 
@@ -917,19 +1160,132 @@ function emitInvoice() {
   normalizeExchangeRate()
   invoice.items.forEach(normalizeQuantity)
 
+  if (!issuer.value) {
+    showNotification('Emisor no disponible', issuerStatusMessage.value, 'danger')
+    return
+  }
+
   if (!isInvoiceReady.value) {
     showNotification('Factura incompleta', 'Completa los campos obligatorios antes de continuar.', 'danger')
     return
   }
 
-  showNotification(
-    'Modo de preparación',
-    `La factura está lista para revisión por un total de ${formatCurrency(grandTotal.value)}. No fue enviada al backend.`,
-    'info',
-  )
+  try {
+    buildEcfRequest(invoiceDraft.value, issuer.value, billingIndicators.value)
+    unknownResult.value = ''
+    getReviewModal()?.show()
+  } catch (error) {
+    const message = error instanceof EcfValidationError
+      ? error.errors.join(' ')
+      : error instanceof Error ? error.message : 'No pudimos validar la factura.'
+    showNotification('Factura incompleta', message, 'danger')
+  }
+}
+
+async function reloadIssuerProfile() {
+  try {
+    await auth.loadProfile()
+    if (issuerReady.value) showNotification('Emisor actualizado', 'Los datos fiscales de la empresa fueron cargados.', 'success')
+  } catch (error) {
+    showNotification(
+      'No pudimos cargar el emisor',
+      error instanceof Error ? error.message : 'Verifica tu conexión e inténtalo nuevamente.',
+      'danger',
+    )
+  }
+}
+
+async function confirmInvoiceEmission() {
+  if (submitting.value) return
+  if (!issuer.value) {
+    showNotification('Emisor no disponible', 'No es posible emitir sin cargar la empresa de la sesión.', 'danger')
+    return
+  }
+
+  try {
+    const request = buildEcfRequest(invoiceDraft.value, issuer.value, billingIndicators.value)
+    const result = await sendInvoice(request)
+    fiscalResult.value = result
+    fiscalResultStatus.value = classifyEcfResult(result)
+    unknownResult.value = ''
+    reviewModalInstance?.hide()
+    await nextTick()
+    getResultModal()?.show()
+
+    if (fiscalResultStatus.value === 'accepted' || fiscalResultStatus.value === 'conditionally-accepted') {
+      localStorage.removeItem(DRAFT_INVOICE_KEY)
+    } else {
+      saveDraftSilently()
+    }
+  } catch (error) {
+    if (error instanceof EcfValidationError) {
+      showNotification('Factura incompleta', error.errors.join(' '), 'danger')
+      return
+    }
+
+    const apiError = error instanceof ApiError ? error : null
+    const isUnknownOutcome = apiError?.code === 'TIMEOUT'
+      || apiError?.code === 'NETWORK_ERROR'
+      || apiError?.status === 500
+
+    if (isUnknownOutcome) {
+      saveDraftSilently()
+      unknownResult.value = 'No fue posible confirmar el resultado de la emisión y el borrador fue conservado.'
+      reviewModalInstance?.hide()
+      showNotification('Resultado desconocido', unknownResult.value, 'danger')
+      return
+    }
+
+    showNotification(
+      'No se pudo emitir',
+      apiError?.message || (error instanceof Error ? error.message : 'La WebAPI rechazó la solicitud.'),
+      'danger',
+    )
+  }
+}
+
+const resultTitle = computed(() => ({
+  accepted: 'Factura aceptada',
+  'conditionally-accepted': 'Factura aceptada condicionalmente',
+  rejected: 'Factura rechazada',
+  processed: 'Factura procesada',
+})[fiscalResultStatus.value])
+
+const resultIcon = computed(() => ({
+  accepted: 'bi-check-circle-fill',
+  'conditionally-accepted': 'bi-exclamation-circle-fill',
+  rejected: 'bi-x-circle-fill',
+  processed: 'bi-info-circle-fill',
+})[fiscalResultStatus.value])
+
+const canDownloadResultPdf = computed(() => Boolean(
+  fiscalResult.value?.encf
+  && fiscalResult.value.secuenciaUtilizada
+  && fiscalResultStatus.value !== 'rejected',
+))
+
+async function downloadResultPdf() {
+  const encf = fiscalResult.value?.encf
+  if (!encf || downloadingPdf.value) return
+
+  downloadingPdf.value = true
+  try {
+    const blob = await downloadPdf(encf)
+    downloadBlob(blob, `${encf}.pdf`)
+  } catch (error) {
+    showNotification(
+      'PDF no disponible',
+      error instanceof Error ? error.message : 'No pudimos descargar el documento fiscal.',
+      'danger',
+    )
+  } finally {
+    downloadingPdf.value = false
+  }
 }
 
 function cancelInvoice() {
+  localStorage.removeItem(DRAFT_INVOICE_KEY)
+  sessionStorage.removeItem(PENDING_INVOICE_KEY)
   navigateTo('/admin/billing')
 }
 
@@ -971,9 +1327,12 @@ async function loadBillingCatalogs() {
     getCurrencies(),
     getReceiptTypes(),
     getBillingIndicators(),
+    getIncomeTypes(),
+    getPaymentTypes(),
+    getPaymentTerms(),
   ])
 
-  const [paymentResult, currencyResult, receiptResult, indicatorResult] = results
+  const [paymentResult, currencyResult, receiptResult, indicatorResult, incomeResult, paymentTypeResult, paymentTermResult] = results
   if (paymentResult.status === 'fulfilled') {
     paymentMethods.value = activeCatalog(paymentResult.value).sort((a, b) => Number(a.codigo) - Number(b.codigo))
   }
@@ -992,12 +1351,24 @@ async function loadBillingCatalogs() {
   if (indicatorResult.status === 'fulfilled') {
     billingIndicators.value = activeCatalog(indicatorResult.value).sort((a, b) => a.codigo - b.codigo)
   }
+  if (incomeResult.status === 'fulfilled') {
+    incomeTypes.value = activeCatalog(incomeResult.value).sort((a, b) => a.codigo.localeCompare(b.codigo))
+  }
+  if (paymentTypeResult.status === 'fulfilled') {
+    paymentTypes.value = activeCatalog(paymentTypeResult.value).sort((a, b) => a.codigo - b.codigo)
+  }
+  if (paymentTermResult.status === 'fulfilled') {
+    paymentTerms.value = activeCatalog(paymentTermResult.value).sort((a, b) => a.codigo.localeCompare(b.codigo))
+  }
 
   const failedCatalogs = [
     paymentResult.status === 'rejected' && 'formas de pago',
     currencyResult.status === 'rejected' && 'monedas',
     receiptResult.status === 'rejected' && 'tipos de comprobante',
     indicatorResult.status === 'rejected' && 'indicadores de facturación',
+    incomeResult.status === 'rejected' && 'tipos de ingreso',
+    paymentTypeResult.status === 'rejected' && 'tipos de pago',
+    paymentTermResult.status === 'rejected' && 'términos de pago',
   ].filter(Boolean)
 
   if (failedCatalogs.length) catalogError.value = `No pudimos cargar: ${failedCatalogs.join(', ')}.`
@@ -1033,6 +1404,32 @@ function getProductModal() {
     focus: true,
   })
   return productModalInstance
+}
+
+function getReviewModal() {
+  if (reviewModalInstance) return reviewModalInstance
+  const bootstrap = getBootstrapModalConstructor()
+  if (!reviewModalElement.value || !bootstrap) return null
+
+  reviewModalInstance = bootstrap.getOrCreateInstance(reviewModalElement.value, {
+    backdrop: 'static',
+    keyboard: false,
+    focus: true,
+  })
+  return reviewModalInstance
+}
+
+function getResultModal() {
+  if (resultModalInstance) return resultModalInstance
+  const bootstrap = getBootstrapModalConstructor()
+  if (!resultModalElement.value || !bootstrap) return null
+
+  resultModalInstance = bootstrap.getOrCreateInstance(resultModalElement.value, {
+    backdrop: true,
+    keyboard: true,
+    focus: true,
+  })
+  return resultModalInstance
 }
 
 function getBootstrapModalConstructor() {
@@ -1136,8 +1533,30 @@ function selectCatalogDefaults() {
     invoice.currency = currencies.value.find(item => item.codigo === 'DOP')?.codigo ?? currencies.value[0]?.codigo ?? ''
   }
   if (!paymentMethods.value.some(item => item.codigo === invoice.paymentMethod)) {
-    invoice.paymentMethod = paymentMethods.value.find(item => item.codigo === '2')?.codigo ?? paymentMethods.value[0]?.codigo ?? ''
+    invoice.paymentMethod = paymentMethods.value.find(item => item.codigo === '1')?.codigo ?? paymentMethods.value[0]?.codigo ?? ''
   }
+  if (!incomeTypes.value.some(item => item.codigo === invoice.incomeType)) {
+    invoice.incomeType = incomeTypes.value.find(item => item.codigo === '01')?.codigo ?? incomeTypes.value[0]?.codigo ?? ''
+  }
+  if (!paymentTypes.value.some(item => item.codigo === invoice.paymentType)) {
+    invoice.paymentType = paymentTypes.value.find(item => item.codigo === 1)?.codigo ?? paymentTypes.value[0]?.codigo ?? 0
+  }
+  if (invoice.paymentType === 2 && !paymentTerms.value.some(item => item.codigo === invoice.paymentTerm)) {
+    invoice.paymentTerm = paymentTerms.value[0]?.codigo ?? ''
+  }
+}
+
+function saveDraftSilently() {
+  localStorage.setItem(DRAFT_INVOICE_KEY, JSON.stringify(invoice))
+}
+
+function downloadBlob(blob: Blob, filename: string) {
+  const url = URL.createObjectURL(blob)
+  const link = document.createElement('a')
+  link.href = url
+  link.download = filename
+  link.click()
+  URL.revokeObjectURL(url)
 }
 
 function normalizeDates() {
@@ -1168,13 +1587,18 @@ function normalizeExchangeRate() {
 
 function restorePendingInvoice() {
   const pendingInvoice = sessionStorage.getItem(PENDING_INVOICE_KEY)
-  if (!pendingInvoice) return
+  const savedDraft = localStorage.getItem(DRAFT_INVOICE_KEY)
+  const invoiceToRestore = pendingInvoice || savedDraft
+  if (!invoiceToRestore) return
 
   try {
-    const restored = JSON.parse(pendingInvoice) as Partial<typeof invoice>
+    const restored = JSON.parse(invoiceToRestore) as Partial<typeof invoice>
     Object.assign(invoice, restored, {
       items: Array.isArray(restored.items) ? restored.items : [],
     })
+    if (!pendingInvoice && savedDraft) {
+      showNotification('Borrador recuperado', 'Restauramos la factura guardada en este navegador.', 'info')
+    }
   } catch {
     showNotification('Borrador no recuperado', 'No pudimos recuperar los datos previos de la factura.', 'danger')
   } finally {
@@ -1500,6 +1924,89 @@ function showNotification(title: string, message: string, type: 'success' | 'dan
   background: #f3f8ff;
   font-size: 0.88rem;
   line-height: 1.4;
+}
+
+.fiscal-review-grid > div {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+  padding: 0.9rem;
+  border: 1px solid #e5eaf2;
+  border-radius: 12px;
+  background: #f8fafc;
+}
+
+.fiscal-review-grid span,
+.fiscal-result-details dt {
+  color: #667085;
+  font-size: 0.75rem;
+  font-weight: 600;
+}
+
+.fiscal-result-card {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  padding: 1rem;
+  border: 1px solid #d8e7ff;
+  border-radius: 14px;
+  color: #0d6efd;
+  background: #f3f8ff;
+}
+
+.fiscal-result-card > i {
+  font-size: 2rem;
+}
+
+.fiscal-result-card > div {
+  display: flex;
+  flex-direction: column;
+}
+
+.fiscal-result-card strong {
+  color: #101828;
+  font-size: 1.1rem;
+}
+
+.fiscal-result-card small {
+  color: #667085;
+}
+
+.fiscal-result-accepted {
+  border-color: #b7e4ca;
+  color: #198754;
+  background: #f0fff6;
+}
+
+.fiscal-result-conditionally-accepted {
+  border-color: #ffe69c;
+  color: #997404;
+  background: #fff9e6;
+}
+
+.fiscal-result-rejected {
+  border-color: #f5c2c7;
+  color: #dc3545;
+  background: #fff5f6;
+}
+
+.fiscal-result-details {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.75rem;
+  margin-bottom: 0;
+}
+
+.fiscal-result-details > div {
+  padding: 0.85rem;
+  border: 1px solid #e5eaf2;
+  border-radius: 12px;
+}
+
+.fiscal-result-details dd {
+  margin: 0.2rem 0 0;
+  color: #101828;
+  font-weight: 600;
 }
 
 .effi-table {
