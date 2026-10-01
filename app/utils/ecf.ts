@@ -295,6 +295,7 @@ export function buildEcfRequest(
           indicadorNotaCredito: null,
           indicadorEnvioDiferido: null,
           indicadorMontoGravado: 0,
+          indicadorServicioTodoIncluido: null,
           tipoIngresos: formatIncomeType(draft.incomeType),
           tipoPago: draft.paymentType,
           fechaLimitePago: draft.paymentType === 2 && draft.dueDate ? toFiscalDate(draft.dueDate) : null,

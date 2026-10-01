@@ -106,6 +106,21 @@ describe('cliente HTTP multiformato', () => {
     expect(headers.get('Content-Type')).toBe('application/json')
   })
 
+  it('permite omitir el Bearer en endpoints públicos', async () => {
+    const fetchImplementation = vi.fn(async (_url, init) => {
+      expect(new Headers(init?.headers).has('Authorization')).toBe(false)
+      return new Response('{}', { headers: { 'content-type': 'application/json' } })
+    })
+    const api = createApiClient({
+      baseURL: 'https://api.example.test',
+      getToken: () => 'token-existente',
+      fetchImplementation,
+    })
+
+    await api('/api/auth/register', { method: 'POST', body: new FormData(), skipAuth: true })
+    expect(fetchImplementation).toHaveBeenCalledOnce()
+  })
+
   it.each([
     ['JSON', '{"ok":true}', 'application/json', { ok: true }],
     ['XML', '<ARECF><Estado>1</Estado></ARECF>', 'application/xml', '<ARECF><Estado>1</Estado></ARECF>'],

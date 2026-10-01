@@ -4,13 +4,14 @@ export function useLocationsApi() {
   const { $api } = useNuxtApp()
 
   async function getProvinces() {
-    const response = await $api<unknown>('/api/provincias', { method: 'GET' })
+    const response = await $api<unknown>('/api/provincias', { method: 'GET', skipAuth: true })
     return normalizeProvincesResponse(response)
   }
 
   async function getMunicipalitiesByProvince(provinceCode: string) {
     const response = await $api<unknown>(`/api/municipios/provincia/${encodeURIComponent(provinceCode)}`, {
       method: 'GET',
+      skipAuth: true,
     })
     return normalizeMunicipalitiesResponse(response)
   }

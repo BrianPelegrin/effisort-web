@@ -1,0 +1,125 @@
+@baseUrl = http://localhost:5203
+
+### Registro mínimo: crea cuenta, pero no deja necesariamente lista la facturación
+POST {{baseUrl}}/api/auth/register
+Content-Type: multipart/form-data; boundary=EffisortRegisterBoundary
+Accept: application/json
+
+--EffisortRegisterBoundary
+Content-Disposition: form-data; name="Rnc"
+
+101234567
+--EffisortRegisterBoundary
+Content-Disposition: form-data; name="RazonSocial"
+
+Empresa Ejemplo SRL
+--EffisortRegisterBoundary
+Content-Disposition: form-data; name="ActividadEconomica"
+
+Servicios de consultoría
+--EffisortRegisterBoundary
+Content-Disposition: form-data; name="ProvinciaId"
+
+010000
+--EffisortRegisterBoundary
+Content-Disposition: form-data; name="MunicipioId"
+
+010100
+--EffisortRegisterBoundary
+Content-Disposition: form-data; name="FullName"
+
+Ada Lovelace
+--EffisortRegisterBoundary
+Content-Disposition: form-data; name="PhoneNumber"
+
+8095550101
+--EffisortRegisterBoundary
+Content-Disposition: form-data; name="UserName"
+
+adalovelace
+--EffisortRegisterBoundary
+Content-Disposition: form-data; name="Email"
+
+ada@empresa.com
+--EffisortRegisterBoundary
+Content-Disposition: form-data; name="ConfirmEmail"
+
+ada@empresa.com
+--EffisortRegisterBoundary
+Content-Disposition: form-data; name="Password"
+
+Secreto123
+--EffisortRegisterBoundary
+Content-Disposition: form-data; name="ConfirmPassword"
+
+Secreto123
+--EffisortRegisterBoundary--
+
+### Registro con activos fiscales; sustituir rutas por archivos locales válidos
+POST {{baseUrl}}/api/auth/register
+Content-Type: multipart/form-data; boundary=EffisortFiscalRegisterBoundary
+Accept: application/json
+
+--EffisortFiscalRegisterBoundary
+Content-Disposition: form-data; name="Rnc"
+
+101234567
+--EffisortFiscalRegisterBoundary
+Content-Disposition: form-data; name="RazonSocial"
+
+Empresa Ejemplo SRL
+--EffisortFiscalRegisterBoundary
+Content-Disposition: form-data; name="ActividadEconomica"
+
+Servicios de consultoría
+--EffisortFiscalRegisterBoundary
+Content-Disposition: form-data; name="ProvinciaId"
+
+010000
+--EffisortFiscalRegisterBoundary
+Content-Disposition: form-data; name="MunicipioId"
+
+010100
+--EffisortFiscalRegisterBoundary
+Content-Disposition: form-data; name="FullName"
+
+Ada Lovelace
+--EffisortFiscalRegisterBoundary
+Content-Disposition: form-data; name="PhoneNumber"
+
+8095550101
+--EffisortFiscalRegisterBoundary
+Content-Disposition: form-data; name="UserName"
+
+adalovelace
+--EffisortFiscalRegisterBoundary
+Content-Disposition: form-data; name="Email"
+
+ada@empresa.com
+--EffisortFiscalRegisterBoundary
+Content-Disposition: form-data; name="ConfirmEmail"
+
+ada@empresa.com
+--EffisortFiscalRegisterBoundary
+Content-Disposition: form-data; name="Password"
+
+Secreto123
+--EffisortFiscalRegisterBoundary
+Content-Disposition: form-data; name="ConfirmPassword"
+
+Secreto123
+--EffisortFiscalRegisterBoundary
+Content-Disposition: form-data; name="PasswordCertificadoFirmaDigital"
+
+CLAVE_PRIVADA_CERTIFICADO
+--EffisortFiscalRegisterBoundary
+Content-Disposition: form-data; name="LogoEmpresa"; filename="logo.png"
+Content-Type: image/png
+
+< ./logo.png
+--EffisortFiscalRegisterBoundary
+Content-Disposition: form-data; name="CertificadoFirmaDigital"; filename="firma.p12"
+Content-Type: application/x-pkcs12
+
+< ./firma.p12
+--EffisortFiscalRegisterBoundary--

@@ -11,6 +11,7 @@ interface TemplateNotify {
 
 const { searchAllDocuments } = useFiscalDocumentsApi()
 const { downloadPdf } = useEcfApi()
+const CREDIT_NOTE_SOURCE_KEY = 'effisort_credit_note_source'
 
 const loading = ref(true)
 const error = ref('')
@@ -102,6 +103,40 @@ async function downloadDocument(document: FiscalDocument) {
 
 function canDownload(document: FiscalDocument) {
   return Boolean(document.encf && document.secuenciaUtilizada && classifyStatus(document.estadoEncf) !== 'rejected')
+}
+
+function supportsCreditNote(document: FiscalDocument) {
+  return ['31', '32'].includes(normalizeDocumentType(document.encfTipo))
+}
+
+function canIssueCreditNote(document: FiscalDocument) {
+  return Boolean(
+    supportsCreditNote(document)
+    && document.encf
+    && document.secuenciaUtilizada
+    && classifyStatus(document.estadoEncf) === 'accepted',
+  )
+}
+
+function creditNoteDisabledReason(document: FiscalDocument) {
+  if (!document.encf) return 'No tiene un e-NCF asignado.'
+  if (!document.secuenciaUtilizada) return 'La secuencia fiscal no fue utilizada.'
+  if (classifyStatus(document.estadoEncf) === 'rejected') return 'La factura fue rechazada.'
+  if (classifyStatus(document.estadoEncf) !== 'accepted') return 'La factura todavía no está aceptada.'
+  return ''
+}
+
+function issueCreditNote(document: FiscalDocument) {
+  if (!canIssueCreditNote(document) || !document.encf) return
+  sessionStorage.setItem(CREDIT_NOTE_SOURCE_KEY, JSON.stringify(document))
+  navigateTo({
+    path: `/admin/billing/${document.id}/credit-note`,
+    query: { encf: document.encf },
+  })
+}
+
+function normalizeDocumentType(value: string) {
+  return value.replace(/^E/i, '')
 }
 
 function classifyStatus(value: string | null) {
@@ -204,16 +239,26 @@ function showNotification(title: string, message: string, type: 'danger' | 'info
           <thead><tr><th>e-NCF</th><th>Comprador</th><th>Emisión</th><th class="text-end">Total</th><th>Estado</th><th>Ambiente</th><th class="text-end">Acción</th></tr></thead>
           <tbody>
             <tr v-for="document in documents" :key="document.id">
-              <td><strong>{{ document.encf || 'Sin e-NCF' }}</strong><small>E{{ document.encfTipo }} · ID {{ document.id }}</small></td>
+              <td><strong>{{ document.encf || 'Sin e-NCF' }}</strong><small>E{{ normalizeDocumentType(document.encfTipo) }} · ID {{ document.id }}</small></td>
               <td><span>{{ document.rncComprador || document.idExtranjero || 'No informado' }}</span><small>{{ document.correoComprador || 'Sin correo' }}</small></td>
               <td><span>{{ formatDate(document.fechaEmision) }}</span><small>Firma: {{ formatDate(document.fechaFirma) }}</small></td>
               <td class="text-end fw-semibold">{{ formatMoney(document.montoTotal) }}</td>
               <td><span class="status-badge" :class="statusClass(document.estadoEncf)">{{ document.estadoEncf || 'Sin estado' }}</span><small v-if="document.mensaje">{{ document.mensaje }}</small></td>
               <td>{{ document.ambienteTrabajo || 'No informado' }}</td>
               <td class="text-end">
-                <button class="btn btn-sm btn-outline-primary" type="button" :disabled="!canDownload(document) || Boolean(downloadingEncf)" @click="downloadDocument(document)">
-                  <span v-if="downloadingEncf === document.encf" class="spinner-border spinner-border-sm" /><i v-else class="bi bi-file-earmark-pdf" /><span class="ms-2">PDF</span>
-                </button>
+                <div class="document-actions">
+                  <div v-if="supportsCreditNote(document)" class="credit-note-action">
+                    <button class="btn btn-sm btn-outline-warning" type="button" :disabled="!canIssueCreditNote(document)" :title="canIssueCreditNote(document) ? 'Emitir nota de crédito' : creditNoteDisabledReason(document)" @click="issueCreditNote(document)">
+                      <i class="bi bi-arrow-counterclockwise" aria-hidden="true" /><span>Nota de crédito</span>
+                    </button>
+                    <small v-if="!canIssueCreditNote(document)" class="credit-note-disabled-message">
+                      <i class="bi bi-info-circle" aria-hidden="true" />{{ creditNoteDisabledReason(document) }}
+                    </small>
+                  </div>
+                  <button class="btn btn-sm btn-outline-primary" type="button" :disabled="!canDownload(document) || Boolean(downloadingEncf)" @click="downloadDocument(document)">
+                    <span v-if="downloadingEncf === document.encf" class="spinner-border spinner-border-sm" /><i v-else class="bi bi-file-earmark-pdf" /><span>PDF</span>
+                  </button>
+                </div>
               </td>
             </tr>
           </tbody>
@@ -226,5 +271,5 @@ function showNotification(title: string, message: string, type: 'danger' | 'info
 </template>
 
 <style scoped>
-.billing-page{min-height:100vh;padding:1.5rem;background:#f5f7fb;color:#101828}.page-header,.table-header,.pagination-wrap{display:flex;align-items:center;justify-content:space-between;gap:1rem}.breadcrumb-line{display:flex;align-items:center;gap:.5rem;color:#667085;font-size:.84rem}.breadcrumb-line i{font-size:.68rem}.page-title{margin:0 0 .35rem;font-size:1.8rem;font-weight:700}.page-subtitle,.table-header p{margin:0;color:#667085}.effi-card{padding:1.3rem;border:1px solid #e5eaf2;border-radius:16px;background:#fff}.effi-btn-primary,.effi-input{min-height:44px;border-radius:10px}.metric-card{display:flex;align-items:center;gap:1rem}.metric-card div{display:flex;flex-direction:column}.metric-card span{color:#667085;font-size:.8rem}.metric-card strong{font-size:1.5rem}.metric-icon{display:grid;width:42px;height:42px;border-radius:12px;font-size:1.1rem;place-items:center}.metric-blue{color:#0d6efd;background:#eef5ff}.metric-success{color:#198754;background:#eaf8ee}.metric-warning{color:#b58105;background:#fff8df}.metric-danger{color:#dc3545;background:#fff0f1}.table-header h2{margin:0 0 .2rem;font-size:1rem}.effi-table th{color:#667085;font-size:.76rem;font-weight:700;white-space:nowrap}.effi-table td{vertical-align:middle}.effi-table td small{display:block;max-width:280px;margin-top:.2rem;color:#667085;font-size:.72rem}.status-badge{display:inline-flex;padding:.32rem .62rem;border-radius:999px;font-size:.73rem;font-weight:700}.status-accepted{color:#157347;background:#eaf8ee}.status-rejected{color:#b02a37;background:#fff0f1}.status-pending{color:#8a6500;background:#fff8df}.state-panel{display:flex;min-height:220px;flex-direction:column;align-items:center;justify-content:center;gap:.65rem;color:#667085;text-align:center}.state-panel>i{font-size:2.5rem;color:#98a2b3}.pagination-wrap{margin-top:1.25rem}.pagination-wrap span{color:#667085;font-size:.84rem}@media(max-width:767.98px){.billing-page{padding:1rem}.page-header,.table-header{align-items:stretch;flex-direction:column}.page-header>a{width:100%;text-align:center}.pagination-wrap{gap:.5rem}}
+.billing-page{min-height:100vh;padding:1.5rem;background:#f5f7fb;color:#101828}.page-header,.table-header,.pagination-wrap{display:flex;align-items:center;justify-content:space-between;gap:1rem}.breadcrumb-line{display:flex;align-items:center;gap:.5rem;color:#667085;font-size:.84rem}.breadcrumb-line i{font-size:.68rem}.page-title{margin:0 0 .35rem;font-size:1.8rem;font-weight:700}.page-subtitle,.table-header p{margin:0;color:#667085}.effi-card{padding:1.3rem;border:1px solid #e5eaf2;border-radius:16px;background:#fff}.effi-btn-primary,.effi-input{min-height:44px;border-radius:10px}.metric-card{display:flex;align-items:center;gap:1rem}.metric-card div{display:flex;flex-direction:column}.metric-card span{color:#667085;font-size:.8rem}.metric-card strong{font-size:1.5rem}.metric-icon{display:grid;width:42px;height:42px;border-radius:12px;font-size:1.1rem;place-items:center}.metric-blue{color:#0d6efd;background:#eef5ff}.metric-success{color:#198754;background:#eaf8ee}.metric-warning{color:#b58105;background:#fff8df}.metric-danger{color:#dc3545;background:#fff0f1}.table-header h2{margin:0 0 .2rem;font-size:1rem}.effi-table th{color:#667085;font-size:.76rem;font-weight:700;white-space:nowrap}.effi-table td{vertical-align:middle}.effi-table td small{display:block;max-width:280px;margin-top:.2rem;color:#667085;font-size:.72rem}.status-badge{display:inline-flex;padding:.32rem .62rem;border-radius:999px;font-size:.73rem;font-weight:700}.status-accepted{color:#157347;background:#eaf8ee}.status-rejected{color:#b02a37;background:#fff0f1}.status-pending{color:#8a6500;background:#fff8df}.document-actions{display:flex;align-items:flex-start;justify-content:flex-end;gap:.45rem;white-space:nowrap}.document-actions .btn{display:inline-flex;align-items:center;gap:.4rem}.credit-note-action{display:flex;max-width:190px;align-items:flex-end;flex-direction:column}.credit-note-disabled-message{display:flex!important;align-items:flex-start;gap:.3rem;margin-top:.35rem!important;color:#8a6500!important;line-height:1.25;text-align:left;white-space:normal}.credit-note-disabled-message i{margin-top:.05rem;flex:0 0 auto}.state-panel{display:flex;min-height:220px;flex-direction:column;align-items:center;justify-content:center;gap:.65rem;color:#667085;text-align:center}.state-panel>i{font-size:2.5rem;color:#98a2b3}.pagination-wrap{margin-top:1.25rem}.pagination-wrap span{color:#667085;font-size:.84rem}@media(max-width:767.98px){.billing-page{padding:1rem}.page-header,.table-header{align-items:stretch;flex-direction:column}.page-header>a{width:100%;text-align:center}.pagination-wrap{gap:.5rem}}
 </style>

@@ -86,6 +86,28 @@ export interface RegisterForm {
   passwordCertificadoFirmaDigital?: string;
 }
 
+/** Nombres exactos que espera el binder multipart de ASP.NET Core. */
+export const REGISTER_FORM_DATA_FIELDS = {
+  rnc: "Rnc",
+  razonSocial: "RazonSocial",
+  actividadEconomica: "ActividadEconomica",
+  provinciaId: "ProvinciaId",
+  municipioId: "MunicipioId",
+  fullName: "FullName",
+  phoneNumber: "PhoneNumber",
+  userName: "UserName",
+  email: "Email",
+  confirmEmail: "ConfirmEmail",
+  password: "Password",
+  confirmPassword: "ConfirmPassword",
+  logoEmpresa: "LogoEmpresa",
+  certificadoFirmaDigital: "CertificadoFirmaDigital",
+  passwordCertificadoFirmaDigital: "PasswordCertificadoFirmaDigital",
+} as const satisfies Record<keyof RegisterForm, string>;
+
+export type RegisterFormDataFieldName =
+  (typeof REGISTER_FORM_DATA_FIELDS)[keyof typeof REGISTER_FORM_DATA_FIELDS];
+
 /** Resultado pretendido por AuthService.Registrar cuando el controlador lo espere correctamente. */
 export interface RegisterIntendedResult {
   id: string;

@@ -8,7 +8,7 @@ export interface EcfDocument {
   subtotales: Record<string, unknown> | null
   descuentosORecargos: EcfAdjustments | null
   paginacion: Record<string, unknown> | null
-  informacionReferencia: Record<string, unknown> | null
+  informacionReferencia: EcfReferenceInformation | null
   fechaHoraFirma: string | null
 }
 
@@ -30,6 +30,7 @@ export interface EcfDocumentId {
   indicadorNotaCredito: number | null
   indicadorEnvioDiferido: number | null
   indicadorMontoGravado: number | null
+  indicadorServicioTodoIncluido: number | null
   tipoIngresos: string | null
   tipoPago: number | null
   fechaLimitePago: string | null
@@ -41,6 +42,14 @@ export interface EcfDocumentId {
   fechaDesde: string | null
   fechaHasta: string | null
   totalPaginas: number | null
+}
+
+export interface EcfReferenceInformation {
+  ncfModificado: string
+  rncOtroContribuyente: string | null
+  fechaNCFModificado: string
+  codigoModificacion: number
+  razonModificacion: string | null
 }
 
 export interface EcfPayment {

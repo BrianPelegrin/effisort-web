@@ -225,6 +225,7 @@ describe('constructor y cálculos e-CF', () => {
           fechaVencimientoSecuencia: null,
           indicadorNotaCredito: null,
           indicadorEnvioDiferido: null,
+          indicadorServicioTodoIncluido: null,
           tipoCuentaPago: null,
           numeroCuentaPago: null,
           bancoPago: null,

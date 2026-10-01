@@ -1,395 +1,632 @@
-<template>
-    <aside ref="sidebarElement" class="sidebar" data-background-color="dark" aria-label="Menú principal">
-        <div class="sidebar-logo">
-            <div class="logo-header" data-background-color="dark">
-                <NuxtLink to="/admin" class="logo text-white fw-bold">
-                    <i class="fa fa-receipt"></i>
-                    <span>Effisort</span>
-                </NuxtLink>
-                <div class="nav-toggle">
-                    <button type="button" class="btn btn-toggle" aria-label="Contraer menú lateral" @click="emit('toggle')">
-                        <i class="gg-menu-right"></i>
-                    </button>
-                </div>
-            </div>
-        </div>
-
-        <div class="sidebar-wrapper">
-            <div class="sidebar-content sidebar-content-layout">
-                <nav class="sidebar-navigation" aria-label="Navegación administrativa">
-                    <ul class="nav nav-secondary">
-                        <li class="nav-item" :class="{ active: route.path === '/admin' }">
-                            <NuxtLink to="/admin" @click="handleNavigation">
-                                <i class="fas fa-file"></i>
-                                <p>Dashboard</p>
-                            </NuxtLink>
-                        </li>
-
-                        <li class="nav-section">
-                            <span class="sidebar-mini-icon"><i class="fa fa-ellipsis-h"></i></span>
-                            <h4 class="text-section">Menú</h4>
-                        </li>
-
-                        <li class="nav-item" :class="{ active: route.path.startsWith('/admin/clients') }">
-                            <NuxtLink to="/admin/clients" @click="handleNavigation">
-                                <i class="fas fa-users"></i>
-                                <p>Clientes</p>
-                            </NuxtLink>
-                        </li>
-
-                        <li class="nav-item" :class="{ active: isBillingActive, 'is-menu-open': expandedMenu === 'billing' }">
-                            <button
-                                type="button"
-                                class="sidebar-menu-toggle"
-                                :aria-expanded="expandedMenu === 'billing'"
-                                aria-controls="billing-menu"
-                                @click="toggleMenu('billing')"
-                            >
-                                <i class="fas fa-receipt"></i>
-                                <p>Facturación</p>
-                                <span class="caret"></span>
-                            </button>
-                            <div id="billing-menu" class="collapse" :class="{ show: expandedMenu === 'billing' }">
-                                <ul class="nav nav-collapse">
-                                    <li><NuxtLink to="/admin/billing" @click="handleNavigation"><span class="sub-item">Lista de facturas</span></NuxtLink></li>
-                                    <li><NuxtLink to="/admin/billing/sale" @click="handleNavigation"><span class="sub-item">Realizar venta</span></NuxtLink></li>
-                                    <li><NuxtLink to="/admin/billing/credit-notes" @click="handleNavigation"><span class="sub-item">Notas de crédito</span></NuxtLink></li>
-                                </ul>
-                            </div>
-                        </li>
-
-                        <li class="nav-item" :class="{ active: isInventoryActive, 'is-menu-open': expandedMenu === 'inventory' }">
-                            <button
-                                type="button"
-                                class="sidebar-menu-toggle"
-                                :aria-expanded="expandedMenu === 'inventory'"
-                                aria-controls="inventory-menu"
-                                @click="toggleMenu('inventory')"
-                            >
-                                <i class="fas fa-store"></i>
-                                <p>Inventario</p>
-                                <span class="caret"></span>
-                            </button>
-                            <div id="inventory-menu" class="collapse" :class="{ show: expandedMenu === 'inventory' }">
-                                <ul class="nav nav-collapse">
-                                    <li><NuxtLink to="/admin/inventory" @click="handleNavigation"><span class="sub-item">Productos</span></NuxtLink></li>
-                                </ul>
-                            </div>
-                        </li>
-                    </ul>
-                </nav>
-
-                <div class="sidebar-user">
-                    <div class="sidebar-user-summary">
-                        <div class="sidebar-user-avatar" aria-hidden="true">{{ userInitial }}</div>
-                        <div class="sidebar-user-info">
-                            <span class="sidebar-user-name">{{ userName }}</span>
-                            <span class="sidebar-user-email">{{ userEmail }}</span>
-                            <span class="sidebar-user-company">{{ companyName }}</span>
-                        </div>
-                    </div>
-                    <button type="button" class="btn btn-outline-light btn-sm sidebar-logout" @click="logout">
-                        <i class="bi bi-box-arrow-right"></i>
-                        Cerrar sesi&oacute;n
-                    </button>
-                </div>
-            </div>
-        </div>
-    </aside>
-</template>
-
 <script setup lang="ts">
-type SidebarMenu = 'billing' | 'inventory'
+type NavigationId = 'home' | 'sale' | 'invoices' | 'clients' | 'inventory' | 'credit-notes'
+
+interface NavigationItem {
+  id: NavigationId
+  label: string
+  description: string
+  icon: string
+  to: string
+  emphasis?: boolean
+}
 
 const emit = defineEmits<{
-    toggle: []
-    navigate: []
+  toggle: []
+  navigate: []
 }>()
 
 const props = withDefaults(defineProps<{
-    collapsed?: boolean
+  collapsed?: boolean
 }>(), {
-    collapsed: false,
+  collapsed: false,
 })
 
 const route = useRoute()
 const auth = useAuthStore()
-const expandedMenu = ref<SidebarMenu | null>(null)
-const sidebarElement = ref<HTMLElement | null>(null)
+
+const mainNavigation: NavigationItem[] = [
+  {
+    id: 'home',
+    label: 'Inicio',
+    description: 'Resumen del negocio',
+    icon: 'bi bi-grid-1x2-fill',
+    to: '/admin',
+  },
+  {
+    id: 'sale',
+    label: 'Realizar venta',
+    description: 'Crear una factura',
+    icon: 'bi bi-cart-check-fill',
+    to: '/admin/billing/sale',
+    emphasis: true,
+  },
+]
+
+const managementNavigation: NavigationItem[] = [
+  {
+    id: 'invoices',
+    label: 'Facturas',
+    description: 'Documentos emitidos',
+    icon: 'bi bi-receipt-cutoff',
+    to: '/admin/billing',
+  },
+  {
+    id: 'clients',
+    label: 'Clientes',
+    description: 'Directorio de clientes',
+    icon: 'bi bi-people-fill',
+    to: '/admin/clients',
+  },
+  {
+    id: 'inventory',
+    label: 'Productos',
+    description: 'Inventario y existencias',
+    icon: 'bi bi-box-seam-fill',
+    to: '/admin/inventory',
+  },
+  {
+    id: 'credit-notes',
+    label: 'Notas de crédito',
+    description: 'Correcciones realizadas',
+    icon: 'bi bi-file-earmark-minus-fill',
+    to: '/admin/billing/credit-notes',
+  },
+]
 
 const userName = computed(() => auth.user?.name || auth.user?.userName || 'Usuario Effisort')
 const userEmail = computed(() => auth.user?.email || 'Sin correo registrado')
-const companyName = computed(() => auth.profile?.empresa.nombreComercial
-    || auth.profile?.empresa.nombreRazonSocial
-    || (auth.profileStatus === 'missing' ? 'Empresa no configurada' : 'Empresa no disponible'))
+const companyName = computed(() => (
+  auth.profile?.empresa.nombreComercial
+  || auth.profile?.empresa.nombreRazonSocial
+  || (auth.profileStatus === 'missing' ? 'Empresa no configurada' : 'Empresa no disponible')
+))
 const userInitial = computed(() => userName.value.trim().charAt(0).toUpperCase() || 'U')
-const isBillingActive = computed(() => route.path.startsWith('/admin/billing'))
-const isInventoryActive = computed(() => route.path.startsWith('/admin/inventory'))
 
-function menuFromPath(path: string): SidebarMenu | null {
-    if (path.startsWith('/admin/billing')) return 'billing'
-    if (path.startsWith('/admin/inventory')) return 'inventory'
-    return null
-}
+function isNavigationActive(id: NavigationId) {
+  const path = route.path.replace(/\/$/, '') || '/'
 
-function toggleMenu(menu: SidebarMenu) {
-    expandedMenu.value = expandedMenu.value === menu ? null : menu
+  switch (id) {
+    case 'home':
+      return path === '/admin'
+    case 'sale':
+      return path === '/admin/billing/sale'
+    case 'invoices':
+      return path === '/admin/billing' || /^\/admin\/billing\/\d+$/.test(path)
+    case 'clients':
+      return path.startsWith('/admin/clients')
+    case 'inventory':
+      return path.startsWith('/admin/inventory')
+    case 'credit-notes':
+      return path.includes('/credit-note')
+    default:
+      return false
+  }
 }
 
 function handleNavigation() {
-    expandedMenu.value = null
-    emit('navigate')
-}
-
-function closeMenuOnOutsideClick(event: MouseEvent) {
-    if (!props.collapsed || !expandedMenu.value) return
-
-    const target = event.target
-    if (!(target instanceof Node)) return
-
-    const openMenu = sidebarElement.value?.querySelector('.nav-item.is-menu-open')
-    if (openMenu && !openMenu.contains(target)) expandedMenu.value = null
+  emit('navigate')
 }
 
 async function logout() {
-    await auth.logout()
+  await auth.logout()
 }
-
-watch(
-    () => route.path,
-    path => {
-        const routeMenu = menuFromPath(path)
-        if (routeMenu && !props.collapsed) expandedMenu.value = routeMenu
-    },
-    { immediate: true },
-)
-
-watch(
-    () => props.collapsed,
-    isCollapsed => {
-        if (isCollapsed) expandedMenu.value = null
-    },
-)
-
-onMounted(() => document.addEventListener('click', closeMenuOnOutsideClick))
-onBeforeUnmount(() => document.removeEventListener('click', closeMenuOnOutsideClick))
 </script>
 
+<template>
+  <aside class="effi-sidebar" :class="{ 'is-collapsed': props.collapsed }" aria-label="Menú principal">
+    <div class="sidebar-brand-row">
+      <NuxtLink to="/admin" class="sidebar-brand" aria-label="Ir al inicio de Effisort" @click="handleNavigation">
+        <span class="brand-symbol" aria-hidden="true">
+          <i class="bi bi-receipt-cutoff" />
+        </span>
+        <span class="brand-copy">
+          <strong>Effisort</strong>
+          <small>Tu negocio en orden</small>
+        </span>
+      </NuxtLink>
+
+      <button
+        type="button"
+        class="sidebar-control desktop-collapse"
+        :aria-label="props.collapsed ? 'Expandir menú lateral' : 'Contraer menú lateral'"
+        :title="props.collapsed ? 'Expandir menú' : 'Contraer menú'"
+        @click="emit('toggle')"
+      >
+        <i :class="props.collapsed ? 'bi bi-chevron-right' : 'bi bi-chevron-left'" aria-hidden="true" />
+      </button>
+
+      <button
+        type="button"
+        class="sidebar-control mobile-close"
+        aria-label="Cerrar menú lateral"
+        @click="emit('toggle')"
+      >
+        <i class="bi bi-x-lg" aria-hidden="true" />
+      </button>
+    </div>
+
+    <div class="sidebar-scroll-area">
+      <nav class="sidebar-navigation" aria-label="Navegación administrativa">
+        <div class="navigation-group">
+          <span class="navigation-label">Principal</span>
+
+          <NuxtLink
+            v-for="item in mainNavigation"
+            :key="item.id"
+            :to="item.to"
+            class="navigation-item"
+            :class="{ 'is-active': isNavigationActive(item.id), 'is-emphasized': item.emphasis }"
+            :aria-current="isNavigationActive(item.id) ? 'page' : undefined"
+            :title="props.collapsed ? item.label : undefined"
+            @click="handleNavigation"
+          >
+            <span class="navigation-icon" aria-hidden="true"><i :class="item.icon" /></span>
+            <span class="navigation-copy">
+              <strong>{{ item.label }}</strong>
+              <small>{{ item.description }}</small>
+            </span>
+            <i class="bi bi-chevron-right navigation-arrow" aria-hidden="true" />
+          </NuxtLink>
+        </div>
+
+        <div class="navigation-group">
+          <span class="navigation-label">Gestión</span>
+
+          <NuxtLink
+            v-for="item in managementNavigation"
+            :key="item.id"
+            :to="item.to"
+            class="navigation-item"
+            :class="{ 'is-active': isNavigationActive(item.id) }"
+            :aria-current="isNavigationActive(item.id) ? 'page' : undefined"
+            :title="props.collapsed ? item.label : undefined"
+            @click="handleNavigation"
+          >
+            <span class="navigation-icon" aria-hidden="true"><i :class="item.icon" /></span>
+            <span class="navigation-copy">
+              <strong>{{ item.label }}</strong>
+              <small>{{ item.description }}</small>
+            </span>
+            <i class="bi bi-chevron-right navigation-arrow" aria-hidden="true" />
+          </NuxtLink>
+        </div>
+      </nav>
+    </div>
+
+    <div class="sidebar-account">
+      <div class="account-summary" :title="props.collapsed ? userName : undefined">
+        <span class="account-avatar" aria-hidden="true">{{ userInitial }}</span>
+        <span class="account-copy">
+          <strong>{{ userName }}</strong>
+          <small>{{ companyName }}</small>
+          <small class="account-email">{{ userEmail }}</small>
+        </span>
+      </div>
+
+      <button
+        type="button"
+        class="logout-button"
+        :title="props.collapsed ? 'Cerrar sesión' : undefined"
+        aria-label="Cerrar sesión"
+        @click="logout"
+      >
+        <i class="bi bi-box-arrow-right" aria-hidden="true" />
+        <span>Cerrar sesión</span>
+      </button>
+    </div>
+  </aside>
+</template>
+
 <style scoped>
-.sidebar {
-    display: flex;
-    flex-direction: column;
+.effi-sidebar {
+  position: sticky;
+  inset: 0 auto 0 0;
+  z-index: 1100;
+  display: flex;
+  width: 280px;
+  height: 100dvh;
+  overflow: hidden;
+  flex-direction: column;
+  border-right: 1px solid rgba(255, 255, 255, 0.07);
+  background:
+    radial-gradient(circle at 20% 0%, rgba(54, 105, 220, 0.2), transparent 17rem),
+    linear-gradient(180deg, #15233f 0%, #101a2f 100%);
+  color: #fff;
+  box-shadow: 10px 0 35px rgba(9, 18, 36, 0.08);
+  transition: width 0.25s ease, transform 0.25s ease;
+  overscroll-behavior: contain;
 }
 
-.sidebar-wrapper {
-    flex: 1 1 auto;
-    min-height: 0 !important;
-    max-height: none !important;
+.sidebar-brand-row {
+  display: flex;
+  min-height: 78px;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  padding: 0 1rem 0 1.1rem;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.07);
 }
 
-.sidebar-content-layout {
-    min-height: 100%;
-    display: flex;
-    flex-direction: column;
+.sidebar-brand {
+  display: flex;
+  min-width: 0;
+  align-items: center;
+  gap: 0.75rem;
+  color: #fff;
+  text-decoration: none;
 }
 
-.sidebar-navigation {
-    flex: 0 0 auto;
+.sidebar-brand:hover {
+  color: #fff;
 }
 
-.sidebar-menu-toggle {
-    display: flex;
-    align-items: center;
-    width: 100%;
-    border: 0;
-    background: transparent;
-    color: rgba(255, 255, 255, 0.82);
-    padding: 6px 25px;
-    font-size: 1rem;
-    text-align: left;
+.brand-symbol {
+  display: grid;
+  flex: 0 0 42px;
+  width: 42px;
+  height: 42px;
+  place-items: center;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 13px;
+  background: linear-gradient(145deg, #3b76ed, #245ac7);
+  box-shadow: 0 8px 20px rgba(37, 89, 198, 0.28);
+  font-size: 1.2rem;
 }
 
-.sidebar-menu-toggle i {
-    width: 25px;
-    margin-right: 15px;
-    color: rgba(255, 255, 255, 0.62);
-    font-size: 16px;
-    line-height: 30px;
-    text-align: center;
+.brand-copy,
+.account-copy,
+.navigation-copy {
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
 }
 
-.sidebar-menu-toggle p {
-    margin: 0 5px 0 0;
-    color: inherit;
-    font-size: 1rem;
-    font-weight: 600;
-    white-space: nowrap;
+.brand-copy strong {
+  font-size: 1.12rem;
+  font-weight: 800;
+  letter-spacing: -0.025em;
+  line-height: 1.2;
 }
 
-.sidebar-menu-toggle .caret {
-    margin-right: 6px;
-    margin-left: auto;
-    color: rgba(255, 255, 255, 0.62);
+.brand-copy small {
+  margin-top: 0.2rem;
+  color: rgba(224, 233, 249, 0.54);
+  font-size: 0.66rem;
+  letter-spacing: 0.02em;
 }
 
-.sidebar-menu-toggle:hover,
-.sidebar-menu-toggle[aria-expanded="true"],
-.nav-item.active > .sidebar-menu-toggle {
-    color: #fff;
+.sidebar-control {
+  display: grid;
+  flex: 0 0 34px;
+  width: 34px;
+  height: 34px;
+  padding: 0;
+  place-items: center;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 10px;
+  background: rgba(255, 255, 255, 0.06);
+  color: rgba(235, 241, 252, 0.78);
+  cursor: pointer;
+  transition: background 0.2s ease, color 0.2s ease;
 }
 
-.sidebar-menu-toggle:hover i,
-.sidebar-menu-toggle[aria-expanded="true"] i,
-.nav-item.active > .sidebar-menu-toggle i {
-    color: #a99cf6;
+.sidebar-control:hover {
+  background: rgba(255, 255, 255, 0.12);
+  color: #fff;
 }
 
-.sidebar-menu-toggle:focus-visible {
-    outline: 2px solid rgba(255, 255, 255, 0.8) !important;
-    outline-offset: -3px;
+.mobile-close {
+  display: none;
 }
 
-.sidebar-menu-toggle[aria-expanded="true"] .caret {
-    transform: rotate(180deg);
+.sidebar-scroll-area {
+  min-height: 0;
+  overflow-x: hidden;
+  overflow-y: auto;
+  flex: 1 1 auto;
+  padding: 1.2rem 0.8rem;
+  scrollbar-color: rgba(255, 255, 255, 0.18) transparent;
+  scrollbar-width: thin;
+  overscroll-behavior: contain;
+  -webkit-overflow-scrolling: touch;
 }
 
-.caret {
-    transition: transform 0.2s ease;
+.sidebar-navigation,
+.navigation-group {
+  display: flex;
+  flex-direction: column;
 }
 
-.sidebar-user {
-    margin-top: auto;
-    padding: 1rem;
-    border-top: 1px solid rgba(255, 255, 255, 0.12);
+.navigation-group + .navigation-group {
+  margin-top: 1.35rem;
 }
 
-.sidebar-user-summary {
-    display: flex;
-    align-items: center;
-    gap: 0.75rem;
-    min-width: 0;
+.navigation-label {
+  margin: 0 0.75rem 0.55rem;
+  color: rgba(218, 228, 246, 0.44);
+  font-size: 0.64rem;
+  font-weight: 800;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
 }
 
-.sidebar-user-avatar {
-    display: grid;
-    flex: 0 0 2.5rem;
-    width: 2.5rem;
-    height: 2.5rem;
-    place-items: center;
-    border-radius: 50%;
-    background: rgba(255, 255, 255, 0.16);
-    color: #fff;
-    font-weight: 700;
+.navigation-item {
+  position: relative;
+  display: flex;
+  min-height: 56px;
+  align-items: center;
+  gap: 0.8rem;
+  margin-bottom: 0.32rem;
+  padding: 0.55rem 0.7rem;
+  border: 1px solid transparent;
+  border-radius: 13px;
+  color: rgba(225, 233, 247, 0.72);
+  text-decoration: none;
+  transition: background 0.18s ease, border-color 0.18s ease, color 0.18s ease, transform 0.18s ease;
 }
 
-.sidebar-user-info {
-    display: flex;
-    min-width: 0;
-    flex-direction: column;
+.navigation-item:hover {
+  border-color: rgba(255, 255, 255, 0.06);
+  background: rgba(255, 255, 255, 0.055);
+  color: #fff;
+  transform: translateX(2px);
 }
 
-.sidebar-user-name,
-.sidebar-user-email,
-.sidebar-user-company {
-    overflow: hidden;
-    color: #fff;
-    text-overflow: ellipsis;
-    white-space: nowrap;
+.navigation-item.is-active {
+  border-color: rgba(92, 139, 238, 0.23);
+  background: linear-gradient(90deg, rgba(60, 112, 222, 0.24), rgba(60, 112, 222, 0.09));
+  color: #fff;
 }
 
-.sidebar-user-name {
-    font-size: 0.875rem;
-    font-weight: 600;
+.navigation-item.is-active::before {
+  position: absolute;
+  top: 12px;
+  bottom: 12px;
+  left: -0.8rem;
+  width: 3px;
+  border-radius: 0 4px 4px 0;
+  background: #64a2ff;
+  content: '';
 }
 
-.sidebar-user-email {
-    color: rgba(255, 255, 255, 0.65);
-    font-size: 0.75rem;
+.navigation-item.is-emphasized:not(.is-active) {
+  border-color: rgba(88, 141, 248, 0.18);
+  background: rgba(53, 108, 222, 0.12);
 }
 
-.sidebar-user-company {
-    margin-top: 0.15rem;
-    color: rgba(169, 156, 246, 0.92);
-    font-size: 0.7rem;
+.navigation-icon {
+  display: grid;
+  flex: 0 0 38px;
+  width: 38px;
+  height: 38px;
+  place-items: center;
+  border-radius: 11px;
+  background: rgba(255, 255, 255, 0.055);
+  color: rgba(213, 225, 246, 0.72);
+  font-size: 1rem;
 }
 
-.sidebar-logout {
-    width: 100%;
-    margin-top: 0.875rem;
+.navigation-item.is-active .navigation-icon,
+.navigation-item.is-emphasized .navigation-icon {
+  background: rgba(90, 145, 255, 0.17);
+  color: #8fbdff;
 }
 
-.sidebar-logout i {
-    margin-right: 0.35rem;
+.navigation-copy {
+  flex: 1 1 auto;
 }
 
-:global(.sidebar_minimize .sidebar-user-info),
-:global(.sidebar_minimize .sidebar-logout) {
+.navigation-copy strong {
+  overflow: hidden;
+  font-size: 0.86rem;
+  font-weight: 700;
+  line-height: 1.25;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.navigation-copy small {
+  overflow: hidden;
+  margin-top: 0.16rem;
+  color: rgba(205, 216, 235, 0.45);
+  font-size: 0.68rem;
+  line-height: 1.25;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.navigation-arrow {
+  color: rgba(217, 227, 245, 0.28);
+  font-size: 0.72rem;
+}
+
+.navigation-item.is-active .navigation-arrow {
+  color: #7facf7;
+}
+
+.sidebar-account {
+  flex: 0 0 auto;
+  padding: 0.9rem 0.8rem 1rem;
+  border-top: 1px solid rgba(255, 255, 255, 0.07);
+  background: rgba(4, 12, 28, 0.12);
+}
+
+.account-summary {
+  display: flex;
+  min-width: 0;
+  align-items: center;
+  gap: 0.75rem;
+  padding: 0.35rem;
+}
+
+.account-avatar {
+  display: grid;
+  flex: 0 0 40px;
+  width: 40px;
+  height: 40px;
+  place-items: center;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 12px;
+  background: linear-gradient(145deg, #344c76, #263957);
+  color: #fff;
+  font-size: 0.9rem;
+  font-weight: 800;
+}
+
+.account-copy {
+  flex: 1 1 auto;
+}
+
+.account-copy strong,
+.account-copy small {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.account-copy strong {
+  color: #f4f7fc;
+  font-size: 0.8rem;
+  font-weight: 700;
+}
+
+.account-copy small {
+  margin-top: 0.1rem;
+  color: rgba(214, 225, 244, 0.5);
+  font-size: 0.65rem;
+}
+
+.account-copy .account-email {
+  color: rgba(214, 225, 244, 0.36);
+}
+
+.logout-button {
+  display: flex;
+  width: 100%;
+  min-height: 40px;
+  align-items: center;
+  justify-content: center;
+  gap: 0.55rem;
+  margin-top: 0.65rem;
+  padding: 0.55rem 0.75rem;
+  border: 1px solid rgba(255, 255, 255, 0.09);
+  border-radius: 11px;
+  background: rgba(255, 255, 255, 0.045);
+  color: rgba(231, 238, 249, 0.7);
+  font-size: 0.75rem;
+  font-weight: 700;
+  cursor: pointer;
+  transition: background 0.18s ease, color 0.18s ease;
+}
+
+.logout-button:hover {
+  background: rgba(225, 75, 96, 0.12);
+  color: #ffb2bf;
+}
+
+.sidebar-control:focus-visible,
+.navigation-item:focus-visible,
+.logout-button:focus-visible,
+.sidebar-brand:focus-visible {
+  outline: 3px solid rgba(114, 166, 255, 0.52) !important;
+  outline-offset: 2px;
+}
+
+@media (min-width: 1200px) {
+  .effi-sidebar.is-collapsed {
+    width: 88px;
+  }
+
+  .is-collapsed .sidebar-brand-row {
+    justify-content: center;
+    padding: 0;
+  }
+
+  .is-collapsed .sidebar-brand {
+    justify-content: center;
+  }
+
+  .is-collapsed .brand-copy,
+  .is-collapsed .navigation-copy,
+  .is-collapsed .navigation-arrow,
+  .is-collapsed .navigation-label,
+  .is-collapsed .account-copy,
+  .is-collapsed .logout-button span {
     display: none;
-}
+  }
 
-:global(.sidebar_minimize .sidebar-user) {
-    display: flex;
-    justify-content: center;
-    padding-right: 0.5rem;
-    padding-left: 0.5rem;
-}
+  .is-collapsed .desktop-collapse {
+    position: absolute;
+    top: 92px;
+    right: -14px;
+    z-index: 2;
+    border-color: #dce3ef;
+    background: #fff;
+    color: #506079;
+    box-shadow: 0 6px 15px rgba(18, 31, 54, 0.13);
+  }
 
-:global(.sidebar_minimize .sidebar-menu-toggle) {
+  .is-collapsed .sidebar-scroll-area {
+    padding-right: 0.65rem;
+    padding-left: 0.65rem;
+  }
+
+  .is-collapsed .navigation-group + .navigation-group {
+    margin-top: 0.8rem;
+  }
+
+  .is-collapsed .navigation-item {
     justify-content: center;
+    padding: 0.45rem;
+  }
+
+  .is-collapsed .navigation-item:hover {
+    transform: none;
+  }
+
+  .is-collapsed .navigation-item.is-active::before {
+    left: -0.65rem;
+  }
+
+  .is-collapsed .sidebar-account {
+    padding-right: 0.65rem;
+    padding-left: 0.65rem;
+  }
+
+  .is-collapsed .account-summary {
+    justify-content: center;
+    padding: 0.35rem 0;
+  }
+
+  .is-collapsed .logout-button {
     padding-right: 0;
     padding-left: 0;
+  }
 }
 
-:global(.sidebar_minimize .sidebar-menu-toggle i) {
-    margin-right: 0;
+@media (max-width: 1199.98px) {
+  .effi-sidebar {
+    position: fixed;
+    width: min(294px, calc(100% - 42px));
+    transform: translate3d(-105%, 0, 0);
+    box-shadow: 18px 0 50px rgba(5, 12, 25, 0.24);
+  }
+
+  .desktop-collapse {
+    display: none;
+  }
+
+  .mobile-close {
+    display: grid;
+  }
 }
 
-:global(.sidebar_minimize .sidebar-menu-toggle p),
-:global(.sidebar_minimize .sidebar-menu-toggle .caret) {
-    display: none !important;
-}
-
-@media screen and (min-width: 992px) {
-    :global(.sidebar_minimize .sidebar),
-    :global(.sidebar_minimize .sidebar .sidebar-wrapper) {
-        overflow: visible;
-    }
-
-    :global(.sidebar_minimize .sidebar .nav-item.is-menu-open) {
-        position: relative;
-        z-index: 2;
-    }
-
-    :global(.sidebar_minimize .sidebar .nav-item.is-menu-open > .collapse.show) {
-        position: absolute;
-        top: 0;
-        left: 75px;
-        display: block !important;
-        width: 220px;
-        padding: 0.5rem 0;
-        border: 1px solid rgba(255, 255, 255, 0.1);
-        border-radius: 0 0.75rem 0.75rem 0;
-        background: #1a2035;
-        box-shadow: 0 0.75rem 1.75rem rgba(3, 11, 28, 0.28);
-    }
-
-    :global(.sidebar_minimize .sidebar .nav-item.is-menu-open > .collapse.show .nav-collapse) {
-        display: block !important;
-        margin: 0;
-        padding: 0;
-    }
-
-    :global(.sidebar_minimize .sidebar .nav-item.is-menu-open > .collapse.show .nav-collapse li a) {
-        display: flex !important;
-        padding: 0.6rem 1rem !important;
-        color: rgba(255, 255, 255, 0.82) !important;
-    }
-
-    :global(.sidebar_minimize .sidebar .nav-item.is-menu-open > .collapse.show .nav-collapse li a span) {
-        display: block !important;
-        color: inherit !important;
-        font-size: 0.9rem;
-        white-space: nowrap;
-    }
+@media (prefers-reduced-motion: reduce) {
+  .effi-sidebar,
+  .navigation-item,
+  .sidebar-control,
+  .logout-button {
+    transition: none;
+  }
 }
 </style>

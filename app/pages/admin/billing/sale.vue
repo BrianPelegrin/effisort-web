@@ -236,14 +236,14 @@
                     <div class="products-empty-state">
                       <i class="bi bi-bag-plus"></i>
                       <strong>No has agregado productos o servicios</strong>
-                      <span>Utiliza el botón inferior para buscar en el inventario.</span>
+                      <span>Selecciona un artículo del inventario o agrega uno personalizado.</span>
                     </div>
                   </td>
                 </tr>
                 <tr v-for="item in invoice.items" :key="item.id">
                   <td>
                     <strong class="line-product-name">{{ item.description }}</strong>
-                    <small class="line-product-code">{{ articleForItem(item)?.codigo || 'Sin código' }}</small>
+                    <small class="line-product-code">{{ item.customArticle ? 'Producto personalizado · Unidad 46' : (articleForItem(item)?.codigo || 'Sin código') }}</small>
                   </td>
 
                   <td class="text-center">
@@ -285,10 +285,16 @@
             </table>
           </div>
 
-          <button ref="productSelectorButton" type="button" class="add-line-button mt-3" :disabled="loadingArticles" aria-haspopup="dialog" :aria-expanded="showProductModal" @click="openProductModal">
-            <i class="bi bi-plus-lg"></i>
-            {{ loadingArticles ? 'Cargando productos...' : 'Agregar producto o servicio' }}
-          </button>
+          <div class="line-add-actions mt-3">
+            <button ref="productSelectorButton" type="button" class="add-line-button" :disabled="loadingArticles" aria-haspopup="dialog" :aria-expanded="showProductModal" @click="openProductModal">
+              <i class="bi bi-box-seam"></i>
+              {{ loadingArticles ? 'Cargando inventario...' : 'Agregar desde inventario' }}
+            </button>
+            <button ref="customProductSelectorButton" type="button" class="add-line-button custom-line-button" :disabled="loadingCatalogs" aria-haspopup="dialog" :aria-expanded="showCustomProductModal" @click="openCustomProductModal">
+              <i class="bi bi-pencil-square"></i>
+              Agregar producto personalizado
+            </button>
+          </div>
         </div>
 
         <!-- Opciones adicionales -->
@@ -697,6 +703,89 @@
     </Teleport>
 
     <Teleport to="body">
+      <div
+        id="custom-product-modal"
+        ref="customProductModalElement"
+        class="modal fade"
+        tabindex="-1"
+        aria-labelledby="custom-product-modal-title"
+        aria-hidden="true"
+      >
+        <div class="modal-dialog modal-lg modal-dialog-centered modal-dialog-scrollable">
+          <form class="modal-content catalog-bootstrap-modal" @submit.prevent="addCustomProduct">
+            <div class="modal-header product-modal-header">
+              <div>
+                <span class="product-modal-eyebrow">Línea personalizada</span>
+                <h2 id="custom-product-modal-title">Agregar producto personalizado</h2>
+                <p>Este producto se incluirá únicamente en la factura y no se guardará en el inventario.</p>
+              </div>
+              <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Cerrar" />
+            </div>
+
+            <div class="modal-body product-modal-body">
+              <div v-if="customProductError" class="alert alert-danger" role="alert">
+                {{ customProductError }}
+              </div>
+
+              <div class="row g-3">
+                <div class="col-12">
+                  <label for="custom-product-name" class="form-label">Nombre del producto o servicio <span class="text-danger">*</span></label>
+                  <input id="custom-product-name" ref="customProductNameInput" v-model.trim="customProduct.nombreItem" type="text" class="form-control" maxlength="80" required>
+                </div>
+
+                <div class="col-md-6">
+                  <label for="custom-product-price" class="form-label">Precio unitario <span class="text-danger">*</span></label>
+                  <div class="input-group">
+                    <span class="input-group-text">RD$</span>
+                    <input id="custom-product-price" v-model.number="customProduct.precioUnitarioItem" type="number" class="form-control" min="0.01" step="0.01" required>
+                  </div>
+                </div>
+
+                <div class="col-md-6">
+                  <label for="custom-product-quantity" class="form-label">Cantidad <span class="text-danger">*</span></label>
+                  <input id="custom-product-quantity" v-model.number="customProduct.cantidadItem" type="number" class="form-control" min="1" step="1" required>
+                  <div class="form-text">La unidad 46 utiliza cantidades enteras.</div>
+                </div>
+
+                <div class="col-md-4">
+                  <label for="custom-product-kind" class="form-label">Bien o servicio <span class="text-danger">*</span></label>
+                  <select id="custom-product-kind" v-model.number="customProduct.indicadorBienServicio" class="form-select" required>
+                    <option :value="0" disabled>Seleccione una opción</option>
+                    <option :value="1">1 — Bien</option>
+                    <option :value="2">2 — Servicio</option>
+                  </select>
+                </div>
+
+                <div class="col-md-5">
+                  <label for="custom-product-billing-indicator" class="form-label">Indicador de facturación <span class="text-danger">*</span></label>
+                  <select id="custom-product-billing-indicator" v-model.number="customProduct.indicadorFacturacion" class="form-select" :disabled="!billingIndicators.length" required>
+                    <option :value="-1" disabled>Seleccione un indicador</option>
+                    <option v-for="indicator in billingIndicators" :key="indicator.id" :value="indicator.codigo">
+                      {{ indicator.codigo }} — {{ indicator.descripcion }} ({{ indicator.tasaItbis }}%)
+                    </option>
+                  </select>
+                </div>
+
+                <div class="col-md-3">
+                  <label for="custom-product-unit" class="form-label">Unidad de medida</label>
+                  <input id="custom-product-unit" type="text" class="form-control" value="46 — Unidad" readonly>
+                </div>
+              </div>
+            </div>
+
+            <div class="modal-footer product-modal-footer">
+              <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Cancelar</button>
+              <button type="submit" class="btn btn-primary" :disabled="!billingIndicators.length">
+                <i class="bi bi-plus-circle me-2"></i>
+                Agregar a la factura
+              </button>
+            </div>
+          </form>
+        </div>
+      </div>
+    </Teleport>
+
+    <Teleport to="body">
       <div id="invoice-review-modal" ref="reviewModalElement" class="modal fade" tabindex="-1" aria-labelledby="invoice-review-title" aria-hidden="true">
         <div class="modal-dialog modal-lg modal-dialog-centered">
           <div class="modal-content catalog-bootstrap-modal">
@@ -811,6 +900,15 @@ interface InvoiceItem {
   quantity: number
   unitPrice: number
   billingIndicator: number
+  customArticle?: Article
+}
+
+interface CustomProductForm {
+  nombreItem: string
+  precioUnitarioItem: number
+  cantidadItem: number
+  indicadorBienServicio: number
+  indicadorFacturacion: number
 }
 
 interface TemplateNotify {
@@ -838,6 +936,7 @@ const DECIMAL_UNIT_CODES = new Set([
   33, 37, 39, 41, 42, 51, 52, 53, 55, 56, 58, 59, 60, 61, 62,
 ])
 const SALE_RECEIPT_TYPES = new Set([31, 32])
+const CUSTOM_PRODUCT_UNIT_CODE = 46
 const PENDING_INVOICE_KEY = 'effisort_invoice_pending_client'
 const DRAFT_INVOICE_KEY = 'effisort_invoice_draft'
 
@@ -867,6 +966,13 @@ const productSearchInput = ref<HTMLInputElement | null>(null)
 const productSelectorButton = ref<HTMLButtonElement | null>(null)
 const productModalElement = ref<HTMLElement | null>(null)
 let productModalInstance: BootstrapModalInstance | null = null
+const showCustomProductModal = ref(false)
+const customProductNameInput = ref<HTMLInputElement | null>(null)
+const customProductSelectorButton = ref<HTMLButtonElement | null>(null)
+const customProductModalElement = ref<HTMLElement | null>(null)
+let customProductModalInstance: BootstrapModalInstance | null = null
+const customProductError = ref('')
+const customProduct = reactive<CustomProductForm>(createEmptyCustomProduct())
 const reviewModalElement = ref<HTMLElement | null>(null)
 const resultModalElement = ref<HTMLElement | null>(null)
 let reviewModalInstance: BootstrapModalInstance | null = null
@@ -921,6 +1027,8 @@ onMounted(async () => {
   clientModalElement.value?.addEventListener('hidden.bs.modal', handleClientModalHidden)
   productModalElement.value?.addEventListener('shown.bs.modal', handleProductModalShown)
   productModalElement.value?.addEventListener('hidden.bs.modal', handleProductModalHidden)
+  customProductModalElement.value?.addEventListener('shown.bs.modal', handleCustomProductModalShown)
+  customProductModalElement.value?.addEventListener('hidden.bs.modal', handleCustomProductModalHidden)
   await loadReferenceData()
 })
 
@@ -929,10 +1037,14 @@ onBeforeUnmount(() => {
   clientModalElement.value?.removeEventListener('hidden.bs.modal', handleClientModalHidden)
   productModalElement.value?.removeEventListener('shown.bs.modal', handleProductModalShown)
   productModalElement.value?.removeEventListener('hidden.bs.modal', handleProductModalHidden)
+  customProductModalElement.value?.removeEventListener('shown.bs.modal', handleCustomProductModalShown)
+  customProductModalElement.value?.removeEventListener('hidden.bs.modal', handleCustomProductModalHidden)
   clientModalInstance?.dispose()
   clientModalInstance = null
   productModalInstance?.dispose()
   productModalInstance = null
+  customProductModalInstance?.dispose()
+  customProductModalInstance = null
   reviewModalInstance?.dispose()
   reviewModalInstance = null
   resultModalInstance?.dispose()
@@ -1389,6 +1501,21 @@ async function openProductModal() {
   modal.show()
 }
 
+async function openCustomProductModal() {
+  Object.assign(customProduct, createEmptyCustomProduct())
+  customProduct.indicadorFacturacion = preferredBillingIndicator()
+  customProductError.value = ''
+  showCustomProductModal.value = true
+  await nextTick()
+  const modal = getCustomProductModal()
+  if (!modal) {
+    showCustomProductModal.value = false
+    showNotification('Modal no disponible', 'No pudimos inicializar el componente de Bootstrap.', 'danger')
+    return
+  }
+  modal.show()
+}
+
 function closeProductModal() {
   getProductModal()?.hide()
 }
@@ -1404,6 +1531,19 @@ function getProductModal() {
     focus: true,
   })
   return productModalInstance
+}
+
+function getCustomProductModal() {
+  if (customProductModalInstance) return customProductModalInstance
+  const bootstrap = getBootstrapModalConstructor()
+  if (!customProductModalElement.value || !bootstrap) return null
+
+  customProductModalInstance = bootstrap.getOrCreateInstance(customProductModalElement.value, {
+    backdrop: true,
+    keyboard: true,
+    focus: true,
+  })
+  return customProductModalInstance
 }
 
 function getReviewModal() {
@@ -1447,6 +1587,97 @@ function handleProductModalHidden() {
   productSelectorButton.value?.focus()
 }
 
+function handleCustomProductModalShown() {
+  showCustomProductModal.value = true
+  customProductNameInput.value?.focus()
+}
+
+function handleCustomProductModalHidden() {
+  showCustomProductModal.value = false
+  customProductError.value = ''
+  customProductSelectorButton.value?.focus()
+}
+
+function createEmptyCustomProduct(): CustomProductForm {
+  return {
+    nombreItem: '',
+    precioUnitarioItem: 0,
+    cantidadItem: 1,
+    indicadorBienServicio: 0,
+    indicadorFacturacion: -1,
+  }
+}
+
+function preferredBillingIndicator() {
+  return billingIndicators.value.find(indicator => indicator.codigo === 1)?.codigo
+    ?? billingIndicators.value.find(indicator => indicator.codigo !== 0)?.codigo
+    ?? billingIndicators.value[0]?.codigo
+    ?? -1
+}
+
+function addCustomProduct() {
+  const name = customProduct.nombreItem.trim()
+  const unitPrice = Number(customProduct.precioUnitarioItem)
+  const quantity = Number(customProduct.cantidadItem)
+  const itemKind = Number(customProduct.indicadorBienServicio)
+  const billingIndicator = Number(customProduct.indicadorFacturacion)
+
+  if (!name) {
+    customProductError.value = 'El nombre del producto o servicio es obligatorio.'
+    return
+  }
+  if (!Number.isFinite(unitPrice) || unitPrice <= 0) {
+    customProductError.value = 'El precio unitario debe ser mayor que cero.'
+    return
+  }
+  if (!Number.isInteger(quantity) || quantity <= 0) {
+    customProductError.value = 'La cantidad debe ser un número entero mayor que cero para la unidad 46.'
+    return
+  }
+  if (![1, 2].includes(itemKind)) {
+    customProductError.value = 'Selecciona si la línea corresponde a un bien o a un servicio.'
+    return
+  }
+  if (!billingIndicators.value.some(indicator => indicator.codigo === billingIndicator)) {
+    customProductError.value = 'Selecciona un indicador de facturación disponible.'
+    return
+  }
+
+  const nextId = Math.max(...invoice.items.map(item => item.id), 0) + 1
+  const articleId = `custom-${Date.now()}-${nextId}`
+  const article: Article = {
+    id: articleId,
+    tenantId: auth.profile?.empresa.tenantId ?? '',
+    codigo: null,
+    tipoCodigo: null,
+    indicadorFacturacion: billingIndicator,
+    nombreItem: name,
+    indicadorBienoServicio: itemKind,
+    descripcionItem: null,
+    unidadMedida: CUSTOM_PRODUCT_UNIT_CODE,
+    precioUnitarioItem: unitPrice,
+    existencia: 0,
+    codigoImpuesto: null,
+    cantidadReferencia: null,
+    unidadReferencia: null,
+    gradosAlcohol: null,
+    precioUnitarioReferencia: null,
+    activo: true,
+  }
+
+  invoice.items.push({
+    id: nextId,
+    articleId,
+    description: name,
+    quantity,
+    unitPrice,
+    billingIndicator,
+    customArticle: article,
+  })
+  getCustomProductModal()?.hide()
+  showNotification('Producto agregado', `${name} fue agregado únicamente a esta factura.`, 'success')
+}
+
 function selectedProductQuantity(articleId: string) {
   return invoice.items.find(item => item.articleId === articleId)?.quantity || 0
 }
@@ -1470,7 +1701,7 @@ function selectProduct(article: Article) {
 }
 
 function articleForItem(item: InvoiceItem) {
-  return articles.value.find(article => article.id === item.articleId)
+  return item.customArticle ?? articles.value.find(article => article.id === item.articleId)
 }
 
 function quantityStep(item: InvoiceItem) {
@@ -2166,6 +2397,25 @@ function showNotification(title: string, message: string, type: 'success' | 'dan
   cursor: wait;
 }
 
+.line-add-actions {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.75rem;
+}
+
+.custom-line-button {
+  border-style: solid;
+  border-color: #c9d5e7;
+  background: #fff;
+  color: #344054;
+}
+
+.custom-line-button:hover {
+  border-color: #9dbce8;
+  background: #f8fbff;
+  color: #175cd3;
+}
+
 .catalog-bootstrap-modal {
   overflow: hidden;
   border: 0;
@@ -2514,6 +2764,10 @@ function showNotification(title: string, message: string, type: 'success' | 'dan
 }
 
 @media (max-width: 575.98px) {
+  .line-add-actions {
+    grid-template-columns: 1fr;
+  }
+
   .invoice-page {
     padding: 1rem;
   }

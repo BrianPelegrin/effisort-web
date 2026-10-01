@@ -23,11 +23,11 @@
             </p>
 
             <div class="hero-actions">
-              <a href="#planes" class="btn primary-button">
-                <i class="bi bi-tags-fill"></i>
-                Ver planes
+              <NuxtLink to="/auth/register" class="btn primary-button">
+                <i class="bi bi-person-plus-fill"></i>
+                Crear mi cuenta
                 <i class="bi bi-arrow-right button-arrow"></i>
-              </a>
+              </NuxtLink>
               <a href="#funcionalidades" class="btn secondary-button">
                 <i class="bi bi-info-circle"></i>
                 Conocer funcionalidades
@@ -247,10 +247,10 @@
                 </li>
               </ul>
 
-              <a href="#cta" class="btn pricing-button" :class="{ 'pricing-button-featured': plan.featured }">
+              <NuxtLink to="/auth/register" class="btn pricing-button" :class="{ 'pricing-button-featured': plan.featured }">
                 {{ plan.cta }}
                 <i class="bi bi-arrow-right"></i>
-              </a>
+              </NuxtLink>
             </article>
           </div>
         </div>
@@ -273,10 +273,10 @@
             </div>
             <div class="col-lg-4">
               <div class="cta-actions">
-                <a href="#planes" class="btn cta-secondary-button">Ver planes</a>
-                <NuxtLink to="/auth/login" class="btn cta-primary-button">
-                  <i class="bi bi-box-arrow-in-right"></i>
-                  Ir al login
+                <NuxtLink to="/auth/login" class="btn cta-secondary-button">Ya tengo cuenta</NuxtLink>
+                <NuxtLink to="/auth/register" class="btn cta-primary-button">
+                  <i class="bi bi-person-plus-fill"></i>
+                  Crear cuenta
                 </NuxtLink>
               </div>
             </div>

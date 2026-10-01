@@ -9,6 +9,7 @@ export interface ApiRequestOptions {
   timeoutMs?: number
   signal?: AbortSignal
   responseType?: 'auto' | 'blob'
+  skipAuth?: boolean
 }
 
 export type ApiErrorCode = 'HTTP_ERROR' | 'TIMEOUT' | 'NETWORK_ERROR'
@@ -109,7 +110,7 @@ export function createApiClient(options: ApiClientOptions) {
     const url = createApiUrl(options.baseURL, request, requestOptions.query)
     const headers = createApiHeaders(
       requestOptions.headers,
-      options.getToken?.(),
+      requestOptions.skipAuth ? undefined : options.getToken?.(),
       requestOptions.body,
       requestOptions.accept,
     )
@@ -143,7 +144,7 @@ export function createApiClient(options: ApiClientOptions) {
         : parseApiResponseBody(await response.text(), contentType)
 
       if (!response.ok) {
-        if (response.status === 401) await options.onUnauthorized?.(request)
+        if (response.status === 401 && !requestOptions.skipAuth) await options.onUnauthorized?.(request)
         throw new ApiError(response.status, body, contentType)
       }
 

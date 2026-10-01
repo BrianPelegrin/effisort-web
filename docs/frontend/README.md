@@ -5,7 +5,10 @@ Documento rehecho y verificado contra el código vigente del proyecto **Effisort
 Archivos complementarios:
 
 - [`api-types.ts`](./api-types.ts): contratos TypeScript reutilizables.
+- [`REGISTRO_EMPRESA.md`](./REGISTRO_EMPRESA.md): integración end-to-end del alta de empresa y primer usuario.
 - [`examples/login.json`](./examples/login.json): login.
+- [`examples/registro-empresa-solicitud.http`](./examples/registro-empresa-solicitud.http): solicitudes multipart con y sin archivos.
+- [`examples/registro-empresa-respuesta-esperada.json`](./examples/registro-empresa-respuesta-esperada.json): resultado de negocio pretendido del registro.
 - [`examples/perfil-respuesta.json`](./examples/perfil-respuesta.json): usuario y empresa autenticados.
 - [`examples/cliente.json`](./examples/cliente.json): alta/edición de cliente.
 - [`examples/articulo.json`](./examples/articulo.json): alta/edición de artículo.
@@ -322,6 +325,8 @@ Flujo recomendado:
 ### 3.3 Registro
 
 `POST /api/auth/register`
+
+La guía exhaustiva de este flujo, incluyendo DTO, pantallas, multipart, efectos secundarios, estados, recuperación, pruebas y bloqueos actuales, está en [`REGISTRO_EMPRESA.md`](./REGISTRO_EMPRESA.md).
 
 La entrada es **`multipart/form-data`**, no JSON. Nombres exactos:
 

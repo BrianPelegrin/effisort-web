@@ -14,6 +14,8 @@ interface ApiError {
 
 const auth = useAuthStore()
 const { $api } = useNuxtApp()
+const route = useRoute()
+const registrationCompleted = computed(() => route.query.registered === '1')
 
 const form = reactive({
   email: '',
@@ -113,6 +115,14 @@ async function onSubmit() {
       <p>Ingresa tus credenciales para acceder al panel de administración.</p>
     </div>
 
+    <div v-if="registrationCompleted" class="login-success" role="status" aria-live="polite">
+      <i class="bi bi-check-circle-fill" aria-hidden="true"></i>
+      <div>
+        <strong>Tu registro fue recibido</strong>
+        <span>Inicia sesión para verificar tu cuenta y continuar con la configuración.</span>
+      </div>
+    </div>
+
     <form novalidate @submit.prevent="onSubmit">
       <div class="form-field">
         <label for="email" class="form-label">Correo electrónico</label>
@@ -206,10 +216,10 @@ async function onSubmit() {
         <span>o</span>
       </div>
 
-      <button type="button" class="register-button">
+      <NuxtLink to="/auth/register" class="register-button">
         <i class="bi bi-person-plus" aria-hidden="true"></i>
         Regístrate con nosotros
-      </button>
+      </NuxtLink>
     </form>
 
     <p class="login-footer">© {{ new Date().getFullYear() }} Effisort. Todos los derechos reservados.</p>
@@ -441,6 +451,38 @@ async function onSubmit() {
   line-height: 1.45;
 }
 
+.login-success {
+  display: flex;
+  margin: -10px 0 24px;
+  padding: 13px 14px;
+  gap: 10px;
+  align-items: flex-start;
+  border: 1px solid #bfe6d1;
+  border-radius: 11px;
+  color: #176f4b;
+  background: #f1fbf6;
+  font-size: 0.8rem;
+}
+
+.login-success > i {
+  margin-top: 1px;
+  color: #20a268;
+}
+
+.login-success div {
+  display: flex;
+  flex-direction: column;
+}
+
+.login-success strong {
+  font-size: 0.82rem;
+}
+
+.login-success span {
+  margin-top: 2px;
+  line-height: 1.45;
+}
+
 .login-alert i {
   margin-top: 1px;
 }
@@ -501,6 +543,7 @@ async function onSubmit() {
   border: 1px solid #b7c9e0;
   color: #14376a;
   background: #ffffff;
+  text-decoration: none;
 }
 
 .register-button:hover {

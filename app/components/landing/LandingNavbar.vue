@@ -45,10 +45,10 @@
           <!-- Navigation actions -->
           <div class="navbar-actions mt-4 mt-lg-0">
             <NuxtLink to="/auth/login" class="btn btn-login">Iniciar sesión</NuxtLink>
-            <a href="#planes" class="btn btn-primary-cta">
-              Comenzar
+            <NuxtLink to="/auth/register" class="btn btn-primary-cta">
+              Crear cuenta
               <i class="bi bi-arrow-right ms-2"></i>
-            </a>
+            </NuxtLink>
           </div>
         </div>
       </div>

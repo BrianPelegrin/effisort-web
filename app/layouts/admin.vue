@@ -1,77 +1,16 @@
-<template>
-    <div
-      class="wrapper admin-shell"
-      :class="{ sidebar_minimize: isSidebarCollapsed, mobile_sidebar_open: isMobileSidebarOpen }"
-    >
-      <!-- Sidebar -->
-      <AdminSidebar
-        :collapsed="isSidebarCollapsed"
-        @toggle="toggleSidebar"
-        @navigate="closeMobileSidebar"
-      />
-      <!-- End Sidebar -->
-
-      <button
-        v-if="isMobileSidebarOpen"
-        type="button"
-        class="sidebar-backdrop"
-        aria-label="Cerrar menú lateral"
-        @click="closeMobileSidebar"
-      ></button>
-
-      <div class="main-panel">
-        <AdminNavbar @toggle-sidebar="toggleSidebar" />
-
-        <div class="container">
-          <div class="page-inner">
-            <slot />
-          </div>
-        </div>
-
-        <!-- <footer class="footer">
-          <div class="container-fluid d-flex justify-content-between">
-            <nav class="pull-left">
-              <ul class="nav">
-                <li class="nav-item">
-                  <a class="nav-link" href="http://www.themekita.com">
-                    ThemeKita
-                  </a>
-                </li>
-                <li class="nav-item">
-                  <a class="nav-link" href="#"> Help </a>
-                </li>
-                <li class="nav-item">
-                  <a class="nav-link" href="#"> Licenses </a>
-                </li>
-              </ul>
-            </nav>
-            <div class="copyright">
-              2024, made with <i class="fa fa-heart heart text-danger"></i> by
-              <a href="http://www.themekita.com">ThemeKita</a>
-            </div>
-            <div>
-              Distributed by
-              <a target="_blank" href="https://themewagon.com/">ThemeWagon</a>.
-            </div>
-          </div>
-        </footer> -->
-      </div>
-
-
-    </div>
-</template>
-
 <script setup lang="ts">
-import AdminNavbar from '~/components/layout/AdminNavbar.vue';
-import AdminSidebar from '~/components/layout/AdminSidebar.vue';
+import AdminNavbar from '~/components/layout/AdminNavbar.vue'
+import AdminSidebar from '~/components/layout/AdminSidebar.vue'
+
+const SIDEBAR_PREFERENCE_KEY = 'effisort-sidebar-collapsed'
+const MOBILE_SIDEBAR_QUERY = '(max-width: 1199.98px)'
 
 const isSidebarCollapsed = ref(false)
 const isMobileSidebarOpen = ref(false)
-const mobileSidebarQuery = '(max-width: 991.98px)'
 let mobileSidebarMedia: MediaQueryList | null = null
 
 function isMobileViewport() {
-  return import.meta.client && (mobileSidebarMedia?.matches ?? window.matchMedia(mobileSidebarQuery).matches)
+  return import.meta.client && (mobileSidebarMedia?.matches ?? window.matchMedia(MOBILE_SIDEBAR_QUERY).matches)
 }
 
 function toggleSidebar() {
@@ -81,6 +20,7 @@ function toggleSidebar() {
   }
 
   isSidebarCollapsed.value = !isSidebarCollapsed.value
+  localStorage.setItem(SIDEBAR_PREFERENCE_KEY, String(isSidebarCollapsed.value))
 }
 
 function closeMobileSidebar() {
@@ -89,8 +29,9 @@ function closeMobileSidebar() {
 
 function syncSidebarForViewport(event?: MediaQueryListEvent) {
   const isMobile = event?.matches ?? isMobileViewport()
+
   if (isMobile) {
-    isSidebarCollapsed.value = false
+    isMobileSidebarOpen.value = false
     return
   }
 
@@ -98,16 +39,18 @@ function syncSidebarForViewport(event?: MediaQueryListEvent) {
 }
 
 function handleEscape(event: KeyboardEvent) {
-  if (event.key === 'Escape') closeMobileSidebar()
+  if (event.key === 'Escape' && isMobileSidebarOpen.value) closeMobileSidebar()
 }
 
 watch(isMobileSidebarOpen, (isOpen) => {
   if (!import.meta.client) return
   document.body.classList.toggle('admin-sidebar-open', isOpen)
+  document.documentElement.classList.toggle('admin-sidebar-open', isOpen)
 })
 
 onMounted(() => {
-  mobileSidebarMedia = window.matchMedia(mobileSidebarQuery)
+  mobileSidebarMedia = window.matchMedia(MOBILE_SIDEBAR_QUERY)
+  isSidebarCollapsed.value = localStorage.getItem(SIDEBAR_PREFERENCE_KEY) === 'true'
   syncSidebarForViewport()
   mobileSidebarMedia.addEventListener('change', syncSidebarForViewport)
   window.addEventListener('keydown', handleEscape)
@@ -117,98 +60,295 @@ onBeforeUnmount(() => {
   mobileSidebarMedia?.removeEventListener('change', syncSidebarForViewport)
   window.removeEventListener('keydown', handleEscape)
   document.body.classList.remove('admin-sidebar-open')
+  document.documentElement.classList.remove('admin-sidebar-open')
 })
 
 useHead({
-  // tagPosition: 'bodyClose' = al final del body (equivalente a tu index.html)
   script: [
-    { src: "/assets/js/core/jquery-3.7.1.min.js", tagPosition: "bodyClose" },
-    { src: "/assets/js/core/popper.min.js", tagPosition: "bodyClose" },
-    { src: "/assets/js/core/bootstrap.min.js", tagPosition: "bodyClose" },
-
-    { src: "/assets/js/plugin/jquery-scrollbar/jquery.scrollbar.min.js", tagPosition: "bodyClose" },
-    { src: "/assets/js/plugin/chart.js/chart.min.js", tagPosition: "bodyClose" },
-    { src: "/assets/js/plugin/jquery.sparkline/jquery.sparkline.min.js", tagPosition: "bodyClose" },
-    { src: "/assets/js/plugin/chart-circle/circles.min.js", tagPosition: "bodyClose" },
-    { src: "/assets/js/plugin/datatables/datatables.min.js", tagPosition: "bodyClose" },
-    { src: "/assets/js/plugin/bootstrap-notify/bootstrap-notify.min.js", tagPosition: "bodyClose" },
-    { src: "/assets/js/plugin/jsvectormap/jsvectormap.min.js", tagPosition: "bodyClose" },
-    { src: "/assets/js/plugin/jsvectormap/world.js", tagPosition: "bodyClose" },
-    { src: "/assets/js/plugin/sweetalert/sweetalert.min.js", tagPosition: "bodyClose" },
+    { src: '/assets/js/core/jquery-3.7.1.min.js', tagPosition: 'bodyClose' },
+    { src: '/assets/js/core/popper.min.js', tagPosition: 'bodyClose' },
+    { src: '/assets/js/core/bootstrap.min.js', tagPosition: 'bodyClose' },
+    { src: '/assets/js/plugin/jquery-scrollbar/jquery.scrollbar.min.js', tagPosition: 'bodyClose' },
+    { src: '/assets/js/plugin/chart.js/chart.min.js', tagPosition: 'bodyClose' },
+    { src: '/assets/js/plugin/jquery.sparkline/jquery.sparkline.min.js', tagPosition: 'bodyClose' },
+    { src: '/assets/js/plugin/chart-circle/circles.min.js', tagPosition: 'bodyClose' },
+    { src: '/assets/js/plugin/datatables/datatables.min.js', tagPosition: 'bodyClose' },
+    { src: '/assets/js/plugin/bootstrap-notify/bootstrap-notify.min.js', tagPosition: 'bodyClose' },
+    { src: '/assets/js/plugin/jsvectormap/jsvectormap.min.js', tagPosition: 'bodyClose' },
+    { src: '/assets/js/plugin/jsvectormap/world.js', tagPosition: 'bodyClose' },
+    { src: '/assets/js/plugin/sweetalert/sweetalert.min.js', tagPosition: 'bodyClose' },
   ],
 })
 </script>
 
+<template>
+  <div
+    class="admin-shell"
+    :class="{
+      'is-sidebar-collapsed': isSidebarCollapsed,
+      'is-mobile-sidebar-open': isMobileSidebarOpen,
+    }"
+  >
+    <AdminSidebar
+      :collapsed="isSidebarCollapsed"
+      @toggle="toggleSidebar"
+      @navigate="closeMobileSidebar"
+    />
+
+    <button
+      v-if="isMobileSidebarOpen"
+      type="button"
+      class="sidebar-backdrop"
+      aria-label="Cerrar menú lateral"
+      @click="closeMobileSidebar"
+    />
+
+    <div class="admin-content">
+      <AdminNavbar @toggle-sidebar="toggleSidebar" />
+      <div class="admin-page-container">
+        <slot />
+      </div>
+    </div>
+  </div>
+</template>
+
 <style scoped>
+.admin-shell {
+  display: grid;
+  width: 100%;
+  max-width: 100%;
+  min-height: 100dvh;
+  grid-template-columns: 280px minmax(0, 1fr);
+  background: #f6f8fc;
+  overflow-x: hidden;
+  overflow-x: clip;
+  transition: grid-template-columns 0.25s ease;
+}
+
+.admin-content {
+  width: 100%;
+  min-width: 0;
+  min-height: 100dvh;
+}
+
+.admin-page-container {
+  width: 100%;
+  max-width: 100%;
+  min-height: 100dvh;
+  min-width: 0;
+  padding: clamp(1rem, 2vw, 1.5rem);
+  overflow-x: hidden;
+}
+
+.admin-shell.is-sidebar-collapsed {
+  grid-template-columns: 88px minmax(0, 1fr);
+}
+
+.admin-page-container :deep(.simple-dashboard),
+.admin-page-container :deep(.invoice-page),
+.admin-page-container :deep(.billing-page),
+.admin-page-container :deep(.credit-notes-page),
+.admin-page-container :deep(.credit-note-page),
+.admin-page-container :deep(.invoice-detail-page) {
+  min-width: 0;
+  min-height: calc(100dvh - 3rem);
+  padding: 0;
+}
+
+.admin-page-container :deep(.clients-page),
+.admin-page-container :deep(.inventory-page),
+.admin-page-container :deep(.table-responsive),
+.admin-page-container :deep(.table-shell),
+.admin-page-container :deep(.item-table-shell),
+.admin-page-container :deep(.source-table) {
+  width: 100%;
+  max-width: 100%;
+  min-width: 0;
+}
+
+.admin-page-container :deep(.table-responsive),
+.admin-page-container :deep(.table-shell),
+.admin-page-container :deep(.item-table-shell),
+.admin-page-container :deep(.source-table) {
+  overflow-x: auto;
+}
+
+.admin-page-container :deep(.row > *) {
+  min-width: 0;
+}
+
 .sidebar-backdrop {
   display: none;
 }
 
-@media screen and (max-width: 991.98px) {
-  .admin-shell {
-    width: 100%;
-    min-height: 100dvh;
-    height: auto;
-    overflow-x: hidden;
+@media (max-width: 1199.98px) {
+  .admin-shell,
+  .admin-shell.is-sidebar-collapsed {
+    display: block;
   }
 
-  .admin-shell :deep(.sidebar) {
-    top: 0;
-    right: auto !important;
-    bottom: 0;
-    left: 0 !important;
-    width: min(265px, calc(100vw - 48px));
+  .admin-page-container {
+    padding: calc(70px + 1rem) 1rem 1rem;
+  }
+
+  .admin-page-container :deep(.simple-dashboard),
+  .admin-page-container :deep(.invoice-page),
+  .admin-page-container :deep(.billing-page),
+  .admin-page-container :deep(.credit-notes-page),
+  .admin-page-container :deep(.credit-note-page),
+  .admin-page-container :deep(.invoice-detail-page) {
+    min-height: calc(100dvh - 86px);
+  }
+
+  .admin-shell.is-mobile-sidebar-open :deep(.effi-sidebar) {
+    transform: translate3d(0, 0, 0);
+  }
+
+  .admin-shell.is-mobile-sidebar-open {
     height: 100dvh;
-    margin: 0;
-    z-index: 1060;
-    background-color: #1a2035;
-    transform: translate3d(-100%, 0, 0) !important;
-    transition: transform 0.3s ease;
+    max-height: 100dvh;
+    overflow: hidden;
+    overscroll-behavior: none;
   }
 
-  .admin-shell.mobile_sidebar_open :deep(.sidebar) {
-    transform: translate3d(0, 0, 0) !important;
-  }
-
-  .admin-shell .main-panel {
-    position: relative;
-    width: 100% !important;
-    min-height: 100dvh;
-    height: auto;
-    margin: 0;
-    opacity: 1;
-    visibility: visible;
-    transform: none !important;
-  }
-
-  .admin-shell .main-header {
-    top: 0;
-    right: 0;
-    left: 0;
-    width: 100% !important;
-  }
-
-  .admin-shell .main-panel > .container {
-    margin-top: 0 !important;
-    padding-top: 70px !important;
+  .admin-shell.is-mobile-sidebar-open .admin-content {
+    height: 100dvh;
+    overflow: hidden;
   }
 
   .sidebar-backdrop {
-    display: block;
     position: fixed;
     inset: 0;
-    width: 100vw;
+    z-index: 1090;
+    display: block;
+    width: 100%;
     height: 100dvh;
-    z-index: 1050;
     padding: 0;
     border: 0;
     border-radius: 0;
-    background-color: rgba(15, 23, 42, 0.45);
+    background: rgba(10, 19, 35, 0.5);
+    cursor: pointer;
     appearance: none;
+    backdrop-filter: blur(2px);
+    overscroll-behavior: none;
+    touch-action: none;
   }
 }
 
+:global(html.admin-sidebar-open),
 :global(body.admin-sidebar-open) {
-  overflow: hidden;
+  width: 100%;
+  height: 100%;
+  overflow: hidden !important;
+  overscroll-behavior: none;
+}
+
+:global(.modal-backdrop) {
+  z-index: 1300 !important;
+}
+
+:global(.modal) {
+  z-index: 1310 !important;
+}
+
+@media (max-width: 767.98px) {
+  :global(html),
+  :global(body),
+  :global(#__nuxt) {
+    max-width: 100%;
+    overflow-x: hidden;
+    overflow-x: clip;
+  }
+
+  :global(.modal) {
+    inset: 0 !important;
+    box-sizing: border-box;
+    width: auto !important;
+    max-width: none;
+    padding: 0.5rem !important;
+    overflow-x: hidden;
+    overscroll-behavior: contain;
+  }
+
+  :global(.modal-dialog) {
+    box-sizing: border-box;
+    width: 100% !important;
+    max-width: 100% !important;
+    margin: 0 auto;
+  }
+
+  :global(.modal-dialog-centered) {
+    min-height: calc(100svh - 1rem);
+    align-items: flex-start;
+  }
+
+  :global(.modal-dialog-scrollable) {
+    height: calc(100svh - 1rem);
+  }
+
+  :global(.modal-dialog-scrollable .modal-content) {
+    max-height: calc(100svh - 1rem);
+  }
+
+  :global(.modal-content) {
+    box-sizing: border-box;
+    max-width: 100%;
+    min-width: 0;
+    overflow-x: hidden;
+  }
+
+  :global(.modal-body) {
+    box-sizing: border-box;
+    width: 100%;
+    max-width: 100%;
+    min-width: 0;
+    overflow-x: hidden;
+    overflow-wrap: anywhere;
+  }
+
+  :global(.modal-header > :first-child) {
+    min-width: 0;
+  }
+
+  :global(.modal-header h1),
+  :global(.modal-header h2),
+  :global(.modal-header h3),
+  :global(.modal-header p) {
+    max-width: 100%;
+    overflow-wrap: anywhere;
+  }
+
+  :global(.modal-footer) {
+    flex-wrap: wrap;
+  }
+
+  :global(.modal-body .table-responsive),
+  :global(.modal-body .item-table-shell),
+  :global(.modal-body .source-table) {
+    width: 100%;
+    max-width: 100%;
+    overflow-x: auto;
+  }
+
+  :global(.modal-body .row > *),
+  :global(.modal-body .input-group),
+  :global(.modal-body .form-control),
+  :global(.modal-body .form-select) {
+    max-width: 100%;
+    min-width: 0;
+  }
+
+  :global(body.modal-open) {
+    width: auto !important;
+    max-width: 100%;
+    padding-right: 0 !important;
+    overflow-x: hidden !important;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .admin-shell {
+    transition: none;
+  }
 }
 </style>
