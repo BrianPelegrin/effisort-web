@@ -49,6 +49,7 @@ export function mapCompanyProfileToIssuer(company: CompanyProfile): IssuerConfig
 
 export interface InvoiceDraftItem {
   article: Article
+  description?: string
   quantity: number
   unitPrice: number
 }
@@ -320,6 +321,7 @@ export function buildEcfRequest(
       detallesItems: {
         item: draft.items.map((draftItem, index) => {
           const article = draftItem.article
+          const itemName = draftItem.description?.trim() || article.nombreItem
           return {
             numeroLinea: index + 1,
             tablaCodigosItem: article.codigo && article.tipoCodigo
@@ -327,7 +329,7 @@ export function buildEcfRequest(
               : null,
             indicadorFacturacion: article.indicadorFacturacion,
             retencion: null,
-            nombreItem: article.nombreItem,
+            nombreItem: itemName,
             indicadorBienoServicio: article.indicadorBienoServicio,
             descripcionItem: nullableText(article.descripcionItem),
             cantidadItem: String(draftItem.quantity),
@@ -382,7 +384,7 @@ export function validateInvoiceDraft(
 
   draft.items.forEach((draftItem, index) => {
     const line = index + 1
-    if (!draftItem.article.nombreItem.trim()) errors.push(`La línea ${line} no tiene nombre.`)
+    if (!(draftItem.description?.trim() || draftItem.article.nombreItem.trim())) errors.push(`La línea ${line} no tiene nombre.`)
     if (!Number.isFinite(draftItem.quantity) || draftItem.quantity <= 0) errors.push(`La cantidad de la línea ${line} debe ser mayor que cero.`)
     if (!Number.isFinite(draftItem.unitPrice) || draftItem.unitPrice < 0) errors.push(`El precio de la línea ${line} es inválido.`)
     if (![1, 2].includes(Number(draftItem.article.indicadorBienoServicio))) errors.push(`La línea ${line} no define si es un bien o servicio.`)

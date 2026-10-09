@@ -242,7 +242,26 @@
                 </tr>
                 <tr v-for="item in invoice.items" :key="item.id">
                   <td>
-                    <strong class="line-product-name">{{ item.description }}</strong>
+                    <template v-if="isEditingInventoryDescription(item)">
+                      <div class="line-description-editor">
+                        <input
+                          v-model.trim="inventoryDescriptionDraft"
+                          type="text"
+                          class="form-control table-input"
+                          maxlength="80"
+                          aria-label="Descripción del producto"
+                          @keydown.enter.prevent="saveInventoryDescription(item)"
+                          @keydown.esc.prevent="cancelInventoryDescriptionEdit"
+                        >
+                        <button type="button" class="line-edit-save" title="Guardar descripción" aria-label="Guardar descripción" @click="saveInventoryDescription(item)">
+                          <i class="bi bi-check-lg" />
+                        </button>
+                        <button type="button" class="line-edit-cancel" title="Cancelar edición" aria-label="Cancelar edición" @click="cancelInventoryDescriptionEdit">
+                          <i class="bi bi-x-lg" />
+                        </button>
+                      </div>
+                    </template>
+                    <strong v-else class="line-product-name">{{ item.description }}</strong>
                     <small class="line-product-code">{{ item.customArticle ? 'Producto personalizado · Unidad 46' : (articleForItem(item)?.codigo || 'Sin código') }}</small>
                   </td>
 
@@ -271,6 +290,26 @@
                   </td>
 
                   <td class="text-end">
+                    <button
+                      v-if="item.customArticle"
+                      type="button"
+                      class="action-btn"
+                      title="Editar producto personalizado"
+                      aria-label="Editar producto personalizado"
+                      @click="openCustomProductEditor(item)"
+                    >
+                      <i class="bi bi-pencil" />
+                    </button>
+                    <button
+                      v-else
+                      type="button"
+                      class="action-btn"
+                      title="Editar descripción"
+                      aria-label="Editar descripción"
+                      @click="startInventoryDescriptionEdit(item)"
+                    >
+                      <i class="bi bi-pencil" />
+                    </button>
                     <button
                       type="button"
                       class="action-btn danger"
@@ -316,12 +355,10 @@
             <div class="row g-3">
               <div class="col-md-4">
                 <label class="form-label">Descuento global</label>
-                <input
-                  v-model.number="invoice.discount"
-                  type="number"
+                <CommonCurrencyInput
+                  v-model="invoice.discount"
                   min="0"
                   :max="grossTotal"
-                  step="0.01"
                   class="form-control effi-input"
                   placeholder="0.00"
                   @change="normalizeDiscount"
@@ -405,7 +442,7 @@
               <strong>{{ formatCurrency(taxTotal) }}</strong>
             </div>
 
-            <div class="summary-row">
+            <div v-if="hasGlobalDiscount" class="summary-row">
               <span>Descuento global</span>
               <strong class="text-danger">- {{ formatCurrency(invoice.discount || 0) }}</strong>
             </div>
@@ -712,11 +749,11 @@
         aria-hidden="true"
       >
         <div class="modal-dialog modal-lg modal-dialog-centered modal-dialog-scrollable">
-          <form class="modal-content catalog-bootstrap-modal" @submit.prevent="addCustomProduct">
+          <form class="modal-content catalog-bootstrap-modal" @submit.prevent="saveCustomProduct">
             <div class="modal-header product-modal-header">
               <div>
-                <span class="product-modal-eyebrow">Línea personalizada</span>
-                <h2 id="custom-product-modal-title">Agregar producto personalizado</h2>
+                <span class="product-modal-eyebrow">{{ isEditingCustomProduct ? 'Editar línea personalizada' : 'Línea personalizada' }}</span>
+                <h2 id="custom-product-modal-title">{{ isEditingCustomProduct ? 'Editar producto personalizado' : 'Agregar producto personalizado' }}</h2>
                 <p>Este producto se incluirá únicamente en la factura y no se guardará en el inventario.</p>
               </div>
               <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Cerrar" />
@@ -737,7 +774,17 @@
                   <label for="custom-product-price" class="form-label">Precio unitario <span class="text-danger">*</span></label>
                   <div class="input-group">
                     <span class="input-group-text">RD$</span>
-                    <input id="custom-product-price" v-model.number="customProduct.precioUnitarioItem" type="number" class="form-control" min="0.01" step="0.01" required>
+                    <input
+                      id="custom-product-price"
+                      :value="formatEditableAmount(customProduct.precioUnitarioItem)"
+                      type="text"
+                      inputmode="decimal"
+                      autocomplete="off"
+                      class="form-control"
+                      required
+                      @focus="selectEditableAmount"
+                      @input="updateCustomProductPrice"
+                    >
                   </div>
                 </div>
 
@@ -776,8 +823,8 @@
             <div class="modal-footer product-modal-footer">
               <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Cancelar</button>
               <button type="submit" class="btn btn-primary" :disabled="!billingIndicators.length">
-                <i class="bi bi-plus-circle me-2"></i>
-                Agregar a la factura
+                <i class="bi me-2" :class="isEditingCustomProduct ? 'bi-check-circle' : 'bi-plus-circle'" />
+                {{ isEditingCustomProduct ? 'Guardar cambios' : 'Agregar a la factura' }}
               </button>
             </div>
           </form>
@@ -973,6 +1020,9 @@ const customProductModalElement = ref<HTMLElement | null>(null)
 let customProductModalInstance: BootstrapModalInstance | null = null
 const customProductError = ref('')
 const customProduct = reactive<CustomProductForm>(createEmptyCustomProduct())
+const editingCustomProductId = ref<number | null>(null)
+const editingInventoryDescriptionId = ref<number | null>(null)
+const inventoryDescriptionDraft = ref('')
 const reviewModalElement = ref<HTMLElement | null>(null)
 const resultModalElement = ref<HTMLElement | null>(null)
 let reviewModalInstance: BootstrapModalInstance | null = null
@@ -1053,6 +1103,7 @@ onBeforeUnmount(() => {
 
 const selectedClient = computed(() => clients.value.find(client => client.id === invoice.clientId))
 const selectedReceiptType = computed(() => receiptTypes.value.find(item => String(item.tipo) === invoice.documentType))
+const isEditingCustomProduct = computed(() => editingCustomProductId.value !== null)
 
 const hasClient = computed(() => !!invoice.clientId)
 const issuerReady = computed(() => Boolean(
@@ -1102,7 +1153,12 @@ const invoiceDraft = computed<InvoiceDraft>(() => ({
   client: selectedClient.value,
   items: invoice.items.flatMap((item) => {
     const article = articleForItem(item)
-    return article ? [{ article, quantity: Number(item.quantity), unitPrice: Number(item.unitPrice) }] : []
+    return article ? [{
+      article,
+      description: item.description,
+      quantity: Number(item.quantity),
+      unitPrice: Number(item.unitPrice),
+    }] : []
   }),
 }))
 
@@ -1145,6 +1201,8 @@ const invoiceCalculation = computed(() => {
 const subtotal = computed(() => invoiceCalculation.value.subtotal)
 const taxTotal = computed(() => invoiceCalculation.value.taxTotal)
 const grossTotal = computed(() => subtotal.value + taxTotal.value)
+const hasGlobalDiscount = computed(() => Number.isFinite(Number(invoice.discount))
+  && Number(invoice.discount) > 0)
 const hasValidDiscount = computed(() => Number.isFinite(Number(invoice.discount))
   && Number(invoice.discount) === 0)
 
@@ -1193,6 +1251,31 @@ function removeItem(id: number) {
   if (index !== -1) {
     invoice.items.splice(index, 1)
   }
+}
+
+function isEditingInventoryDescription(item: InvoiceItem) {
+  return !item.customArticle && editingInventoryDescriptionId.value === item.id
+}
+
+function startInventoryDescriptionEdit(item: InvoiceItem) {
+  editingInventoryDescriptionId.value = item.id
+  inventoryDescriptionDraft.value = item.description
+}
+
+function cancelInventoryDescriptionEdit() {
+  editingInventoryDescriptionId.value = null
+  inventoryDescriptionDraft.value = ''
+}
+
+function saveInventoryDescription(item: InvoiceItem) {
+  const description = inventoryDescriptionDraft.value.trim()
+  if (!description) {
+    showNotification('Descripción requerida', 'Escribe una descripción para este producto antes de guardar.', 'info')
+    return
+  }
+
+  item.description = description
+  cancelInventoryDescriptionEdit()
 }
 
 function createClient() {
@@ -1502,6 +1585,7 @@ async function openProductModal() {
 }
 
 async function openCustomProductModal() {
+  editingCustomProductId.value = null
   Object.assign(customProduct, createEmptyCustomProduct())
   customProduct.indicadorFacturacion = preferredBillingIndicator()
   customProductError.value = ''
@@ -1511,6 +1595,30 @@ async function openCustomProductModal() {
   if (!modal) {
     showCustomProductModal.value = false
     showNotification('Modal no disponible', 'No pudimos inicializar el componente de Bootstrap.', 'danger')
+    return
+  }
+  modal.show()
+}
+
+async function openCustomProductEditor(item: InvoiceItem) {
+  const article = item.customArticle
+  if (!article) return
+
+  editingCustomProductId.value = item.id
+  Object.assign(customProduct, {
+    nombreItem: item.description,
+    precioUnitarioItem: item.unitPrice,
+    cantidadItem: item.quantity,
+    indicadorBienServicio: article.indicadorBienoServicio,
+    indicadorFacturacion: item.billingIndicator,
+  } satisfies CustomProductForm)
+  customProductError.value = ''
+  showCustomProductModal.value = true
+  await nextTick()
+  const modal = getCustomProductModal()
+  if (!modal) {
+    showCustomProductModal.value = false
+    showNotification('Modal no disponible', 'No pudimos inicializar el editor del producto.', 'danger')
     return
   }
   modal.show()
@@ -1595,6 +1703,7 @@ function handleCustomProductModalShown() {
 function handleCustomProductModalHidden() {
   showCustomProductModal.value = false
   customProductError.value = ''
+  editingCustomProductId.value = null
   customProductSelectorButton.value?.focus()
 }
 
@@ -1615,7 +1724,70 @@ function preferredBillingIndicator() {
     ?? -1
 }
 
-function addCustomProduct() {
+function numericAmount(value: string) {
+  const normalized = value.replace(/,/g, '').replace(/[^0-9.]/g, '')
+  const [integer = '', ...decimals] = normalized.split('.')
+  const amount = Number(`${integer}.${decimals.join('')}`)
+  return Number.isFinite(amount) ? amount : 0
+}
+
+function formatEditableAmount(value: number | string | null | undefined) {
+  const source = String(value ?? '').replace(/,/g, '').replace(/[^0-9.]/g, '')
+  if (!source || source === '.') return ''
+
+  const [integerPart = '', decimalPart = ''] = source.split('.')
+  const integer = integerPart.replace(/^0+(?=\d)/, '') || '0'
+  const groupedInteger = new Intl.NumberFormat('en-US', { maximumFractionDigits: 0 }).format(Number(integer))
+  return `${groupedInteger}.${decimalPart.slice(0, 2).padEnd(2, '0')}`
+}
+
+function selectEditableAmount(event: FocusEvent) {
+  const input = event.target as HTMLInputElement
+  input.select()
+}
+
+function updateCustomProductPrice(event: Event) {
+  const input = event.target as HTMLInputElement
+  const typedValue = input.value
+  const cursor = input.selectionStart ?? typedValue.length
+  const decimalPosition = typedValue.indexOf('.')
+  const integerDigitsBeforeCursor = typedValue.slice(0, decimalPosition === -1 ? cursor : Math.min(cursor, decimalPosition)).replace(/\D/g, '').length
+  const decimalsBeforeCursor = decimalPosition !== -1 && cursor > decimalPosition
+    ? Math.min(2, typedValue.slice(decimalPosition + 1, cursor).replace(/\D/g, '').length)
+    : 0
+  const formattedValue = formatEditableAmount(typedValue)
+
+  customProduct.precioUnitarioItem = numericAmount(typedValue)
+  input.value = formattedValue
+
+  nextTick(() => {
+    if (!formattedValue) {
+      input.setSelectionRange(0, 0)
+      return
+    }
+
+    const formattedDecimalPosition = formattedValue.indexOf('.')
+    let nextCursor = formattedDecimalPosition
+
+    if (decimalPosition !== -1 && cursor > decimalPosition) {
+      nextCursor = formattedDecimalPosition + 1 + decimalsBeforeCursor
+    } else {
+      let seenDigits = 0
+      for (let index = 0; index < formattedDecimalPosition; index += 1) {
+        if (/\d/.test(formattedValue[index] ?? '')) seenDigits += 1
+        if (seenDigits === integerDigitsBeforeCursor) {
+          nextCursor = index + 1
+          break
+        }
+      }
+      if (integerDigitsBeforeCursor === 0) nextCursor = 0
+    }
+
+    input.setSelectionRange(nextCursor, nextCursor)
+  })
+}
+
+function saveCustomProduct() {
   const name = customProduct.nombreItem.trim()
   const unitPrice = Number(customProduct.precioUnitarioItem)
   const quantity = Number(customProduct.cantidadItem)
@@ -1640,6 +1812,26 @@ function addCustomProduct() {
   }
   if (!billingIndicators.value.some(indicator => indicator.codigo === billingIndicator)) {
     customProductError.value = 'Selecciona un indicador de facturación disponible.'
+    return
+  }
+
+  const editingItem = editingCustomProductId.value === null
+    ? undefined
+    : invoice.items.find(item => item.id === editingCustomProductId.value && item.customArticle)
+
+  if (editingItem?.customArticle) {
+    editingItem.description = name
+    editingItem.quantity = quantity
+    editingItem.unitPrice = unitPrice
+    editingItem.billingIndicator = billingIndicator
+    Object.assign(editingItem.customArticle, {
+      nombreItem: name,
+      precioUnitarioItem: unitPrice,
+      indicadorFacturacion: billingIndicator,
+      indicadorBienoServicio: itemKind,
+    })
+    getCustomProductModal()?.hide()
+    showNotification('Producto actualizado', `${name} fue actualizado en esta factura.`, 'success')
     return
   }
 
@@ -2288,6 +2480,45 @@ function showNotification(title: string, message: string, type: 'success' | 'dan
   font-size: 0.74rem;
 }
 
+.line-description-editor {
+  display: flex;
+  min-width: 250px;
+  align-items: center;
+  gap: 0.35rem;
+}
+
+.line-description-editor .table-input {
+  min-width: 0;
+  flex: 1 1 auto;
+}
+
+.line-edit-save,
+.line-edit-cancel {
+  display: inline-flex;
+  width: 32px;
+  height: 32px;
+  flex: 0 0 32px;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+  border: 1px solid #d9e1ec;
+  border-radius: 8px;
+  background: #fff;
+  color: #667085;
+}
+
+.line-edit-save:hover {
+  border-color: #b7ebc6;
+  background: #edfbf1;
+  color: #16803f;
+}
+
+.line-edit-cancel:hover {
+  border-color: #fecaca;
+  background: #fff5f5;
+  color: #dc2626;
+}
+
 .products-empty-state {
   display: flex;
   min-height: 150px;
@@ -2367,6 +2598,16 @@ function showNotification(title: string, message: string, type: 'success' | 'dan
   color: #dc2626;
   border-color: #fecaca;
   background: #fff5f5;
+}
+
+.action-btn + .action-btn {
+  margin-left: 0.35rem;
+}
+
+.action-btn:not(.danger):hover:not(:disabled) {
+  border-color: #b9d3ff;
+  background: #f1f6ff;
+  color: #0d6efd;
 }
 
 .action-btn:disabled {

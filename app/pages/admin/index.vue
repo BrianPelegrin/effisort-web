@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import type { FiscalDocument } from '~/types/ecf'
+import { summarizeMonthlySales } from '~/utils/dashboard-sales'
 
 interface DashboardOption {
   title: string
@@ -17,12 +18,31 @@ const loadingSales = ref(true)
 const salesError = ref('')
 const monthlySales = ref(0)
 const monthlySalesCount = ref(0)
-const today = new Date()
+const salesDocuments = ref<FiscalDocument[]>([])
+const currentDate = new Date()
+const selectedMonth = ref(currentDate.getMonth() + 1)
+const selectedYear = ref(currentDate.getFullYear())
 
-const monthLabel = new Intl.DateTimeFormat('es-DO', {
+const monthFormatter = new Intl.DateTimeFormat('es-DO', {
+  month: 'long',
+})
+
+const monthOptions = Array.from({ length: 12 }, (_, index) => ({
+  value: index + 1,
+  label: monthFormatter.format(new Date(2026, index, 1)),
+}))
+
+const yearOptions = Array.from(
+  { length: Math.max(1, currentDate.getFullYear() - 2020 + 1) },
+  (_, index) => currentDate.getFullYear() - index,
+)
+
+const selectedPeriod = computed(() => new Date(selectedYear.value, selectedMonth.value - 1, 1))
+
+const monthLabel = computed(() => new Intl.DateTimeFormat('es-DO', {
   month: 'long',
   year: 'numeric',
-}).format(today)
+}).format(selectedPeriod.value))
 
 const userName = computed(() => {
   const fullName = auth.user?.name || auth.user?.userName || ''
@@ -77,17 +97,17 @@ const menuOptions: DashboardOption[] = [
 
 onMounted(loadMonthlySales)
 
+watch([selectedMonth, selectedYear], updateMonthlySales)
+
 async function loadMonthlySales() {
   loadingSales.value = true
   salesError.value = ''
 
   try {
-    const documents = await searchAllDocuments()
-    const sales = documents.filter(isCurrentMonthSale)
-
-    monthlySalesCount.value = sales.length
-    monthlySales.value = sales.reduce((total, document) => total + Number(document.montoTotal || 0), 0)
+    salesDocuments.value = await searchAllDocuments()
+    updateMonthlySales()
   } catch (error) {
+    salesDocuments.value = []
     monthlySales.value = 0
     monthlySalesCount.value = 0
     salesError.value = error instanceof Error
@@ -98,39 +118,10 @@ async function loadMonthlySales() {
   }
 }
 
-function isCurrentMonthSale(document: FiscalDocument) {
-  if (document.activo === false || isRejected(document.estadoEncf) || isCreditNote(document.encfTipo)) {
-    return false
-  }
-
-  const dateParts = getDateParts(document.fechaEmision || document.createdAt)
-  if (!dateParts) return false
-
-  return dateParts.year === today.getFullYear() && dateParts.month === today.getMonth() + 1
-}
-
-function isRejected(status: string | null) {
-  const normalizedStatus = status?.toLocaleLowerCase('es') || ''
-  return normalizedStatus.includes('rechazado') || normalizedStatus.includes('no aceptado')
-}
-
-function isCreditNote(documentType: string) {
-  return documentType.replace(/^e/i, '') === '34'
-}
-
-function getDateParts(value: string | null) {
-  if (!value) return null
-
-  const isoDate = /^(\d{4})-(\d{2})-(\d{2})/.exec(value)
-  if (isoDate) return { year: Number(isoDate[1]), month: Number(isoDate[2]) }
-
-  const localDate = /^(\d{2})\/(\d{2})\/(\d{4})/.exec(value)
-  if (localDate) return { year: Number(localDate[3]), month: Number(localDate[2]) }
-
-  const parsedDate = new Date(value)
-  if (Number.isNaN(parsedDate.getTime())) return null
-
-  return { year: parsedDate.getFullYear(), month: parsedDate.getMonth() + 1 }
+function updateMonthlySales() {
+  const summary = summarizeMonthlySales(salesDocuments.value, selectedPeriod.value)
+  monthlySalesCount.value = summary.count
+  monthlySales.value = summary.total
 }
 
 function formatCurrency(value: number) {
@@ -154,7 +145,17 @@ function formatCurrency(value: number) {
 
         <div class="current-month" aria-label="Período de ventas mostrado">
           <i class="bi bi-calendar3" aria-hidden="true" />
-          <span>{{ monthLabel }}</span>
+          <div class="period-fields">
+            <label class="visually-hidden" for="dashboard-month">Mes de ventas</label>
+            <select id="dashboard-month" v-model.number="selectedMonth" class="period-select">
+              <option v-for="month in monthOptions" :key="month.value" :value="month.value">{{ month.label }}</option>
+            </select>
+
+            <label class="visually-hidden" for="dashboard-year">Año de ventas</label>
+            <select id="dashboard-year" v-model.number="selectedYear" class="period-select period-year-select">
+              <option v-for="year in yearOptions" :key="year" :value="year">{{ year }}</option>
+            </select>
+          </div>
         </div>
       </header>
 
@@ -165,7 +166,7 @@ function formatCurrency(value: number) {
           </span>
 
           <div class="sales-copy">
-            <p id="monthly-sales-title">Ventas del mes</p>
+            <p id="monthly-sales-title">Ventas del período</p>
 
             <div class="sales-value" aria-live="polite">
               <span v-if="loadingSales" class="loading-line" aria-label="Consultando ventas" />
@@ -312,6 +313,40 @@ function formatCurrency(value: number) {
 .current-month i {
   color: #2864dc;
   font-size: 1rem;
+}
+
+.period-fields {
+  display: flex;
+  align-items: center;
+  gap: 0.35rem;
+}
+
+.period-select {
+  min-width: 0;
+  padding: 0.15rem 1.55rem 0.15rem 0.15rem;
+  border: 0;
+  border-radius: 7px;
+  outline: 0;
+  background-color: transparent;
+  color: #34425c;
+  font: inherit;
+  font-weight: 700;
+  text-transform: capitalize;
+  cursor: pointer;
+}
+
+.period-year-select {
+  width: 5.5rem;
+}
+
+.period-select:hover,
+.period-select:focus-visible {
+  background-color: #edf3ff;
+}
+
+.period-select:focus-visible {
+  outline: 3px solid rgba(61, 124, 255, 0.3);
+  outline-offset: 1px;
 }
 
 .sales-card {

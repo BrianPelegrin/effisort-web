@@ -116,13 +116,7 @@ async function logout() {
   <aside class="effi-sidebar" :class="{ 'is-collapsed': props.collapsed }" aria-label="Menú principal">
     <div class="sidebar-brand-row">
       <NuxtLink to="/admin" class="sidebar-brand" aria-label="Ir al inicio de Effisort" @click="handleNavigation">
-        <span class="brand-symbol" aria-hidden="true">
-          <i class="bi bi-receipt-cutoff" />
-        </span>
-        <span class="brand-copy">
-          <strong>Effisort</strong>
-          <small>Tu negocio en orden</small>
-        </span>
+        <img src="/images/effisort-logo-navbar.png" alt="Effisort Software Solutions" class="brand-logo">
       </NuxtLink>
 
       <button
@@ -249,10 +243,13 @@ async function logout() {
 
 .sidebar-brand {
   display: flex;
+  position: relative;
+  flex: 1 1 auto;
+  height: 68px;
   min-width: 0;
   align-items: center;
-  gap: 0.75rem;
   color: #fff;
+  overflow: hidden;
   text-decoration: none;
 }
 
@@ -260,39 +257,22 @@ async function logout() {
   color: #fff;
 }
 
-.brand-symbol {
-  display: grid;
-  flex: 0 0 42px;
-  width: 42px;
-  height: 42px;
-  place-items: center;
-  border: 1px solid rgba(255, 255, 255, 0.12);
-  border-radius: 13px;
-  background: linear-gradient(145deg, #3b76ed, #245ac7);
-  box-shadow: 0 8px 20px rgba(37, 89, 198, 0.28);
-  font-size: 1.2rem;
+.brand-logo {
+  display: block;
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: 245px;
+  height: auto;
+  max-width: none;
+  transform: translate(-50%, -50%);
 }
 
-.brand-copy,
 .account-copy,
 .navigation-copy {
   display: flex;
   min-width: 0;
   flex-direction: column;
-}
-
-.brand-copy strong {
-  font-size: 1.12rem;
-  font-weight: 800;
-  letter-spacing: -0.025em;
-  line-height: 1.2;
-}
-
-.brand-copy small {
-  margin-top: 0.2rem;
-  color: rgba(224, 233, 249, 0.54);
-  font-size: 0.66rem;
-  letter-spacing: 0.02em;
 }
 
 .sidebar-control {
@@ -543,16 +523,24 @@ async function logout() {
   }
 
   .is-collapsed .sidebar-brand {
+    flex: 0 0 44px;
+    width: 44px;
+    height: 44px;
     justify-content: center;
   }
 
-  .is-collapsed .brand-copy,
   .is-collapsed .navigation-copy,
   .is-collapsed .navigation-arrow,
   .is-collapsed .navigation-label,
   .is-collapsed .account-copy,
   .is-collapsed .logout-button span {
     display: none;
+  }
+
+  .is-collapsed .brand-logo {
+    left: 0;
+    width: 170px;
+    transform: translateY(-50%);
   }
 
   .is-collapsed .desktop-collapse {

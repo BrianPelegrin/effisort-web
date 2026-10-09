@@ -133,6 +133,18 @@ describe('constructor y cálculos e-CF', () => {
     expect(typeof request.ecf.detallesItems.item[0]?.cantidadItem).toBe('string')
   })
 
+  it('usa la descripción editada de la línea sin modificar el artículo de inventario', () => {
+    const request = buildEcfRequest({
+      ...draft,
+      items: [{ ...draft.items[0]!, description: 'SERVICIO DE CONSULTORÍA - PROYECTO ESPECIAL' }],
+    }, {
+      rnc: '101234567', businessName: 'EMPRESA EJEMPLO SRL', address: 'AV. EJEMPLO 123',
+    }, indicators)
+
+    expect(request.ecf.detallesItems.item[0]?.nombreItem).toBe('SERVICIO DE CONSULTORÍA - PROYECTO ESPECIAL')
+    expect(article.nombreItem).toBe('SERVICIO DE CONSULTORÍA')
+  })
+
   it('mapea la empresa autenticada y combina sus teléfonos', () => {
     const issuer = mapCompanyProfileToIssuer({
       tenantId: 'tenant-1', nombreRazonSocial: ' EMPRESA EJEMPLO SRL ', nombreComercial: ' EJEMPLO ',
