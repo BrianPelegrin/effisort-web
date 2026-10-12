@@ -23,6 +23,23 @@ export function ensureFiscalDocumentsDescending(items: FiscalDocument[]) {
   return [...items].sort(compareFiscalDocumentsDescending)
 }
 
+export function filterFiscalDocumentsByIssueDateRange(items: FiscalDocument[], fromDate: string, toDate: string) {
+  if (!fromDate && !toDate) return items
+
+  return items.filter(document => {
+    const date = fiscalDocumentDateToIso(document.fechaEmision)
+    return date !== null && (!fromDate || date >= fromDate) && (!toDate || date <= toDate)
+  })
+}
+
+function fiscalDocumentDateToIso(value: string | null) {
+  if (!value) return null
+  const iso = /^(\d{4})-(\d{2})-(\d{2})/.exec(value)
+  if (iso) return `${iso[1]}-${iso[2]}-${iso[3]}`
+  const fiscal = /^(\d{2})-(\d{2})-(\d{4})/.exec(value)
+  return fiscal ? `${fiscal[3]}-${fiscal[2]}-${fiscal[1]}` : null
+}
+
 export function validateFiscalDocumentSearchResponse(value: unknown): PagedResponse<FiscalDocument> {
   if (!isRecord(value)) throw new Error('La API devolvió una bandeja fiscal inválida.')
 

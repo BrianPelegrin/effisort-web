@@ -8,6 +8,7 @@ import {
   DuplicateSubmissionError,
   mapCompanyProfileToIssuer,
   mapFacturacionResponse,
+  prepareInvoiceOnlyBuyer,
   validateFacturacionApiResponse,
 } from '~/utils/ecf'
 import type { Article, BillingIndicator } from '~/types/article'
@@ -293,7 +294,7 @@ describe('constructor y cálculos e-CF', () => {
     expect(findUndefinedPaths(request)).toEqual([])
   })
 
-  it('normaliza la identificación y el contacto del comprador y omite su correo', () => {
+  it('normaliza la identificación y el contacto del comprador y usa su correo en la factura', () => {
     const request = buildEcfRequest({
       ...draft,
       client: {
@@ -311,10 +312,66 @@ describe('constructor y cálculos e-CF', () => {
     expect(request.ecf.encabezado.comprador).toMatchObject({
       rncComprador: '131234567',
       contactoComprador: '8095550100',
-      correoComprador: null,
+      correoComprador: 'correo-real@ejemplo.com',
       municipioComprador: '010100',
       provinciaComprador: '010000',
     })
+  })
+
+  it('permite un correo exclusivo de la factura sin modificar el cliente', () => {
+    const originalEmail = client.correoComprador
+    const request = buildEcfRequest({
+      ...draft,
+      buyerEmail: '  factura@ejemplo.com  ',
+    }, {
+      rnc: '101234567', businessName: 'EMPRESA EJEMPLO SRL', address: 'AV. EJEMPLO 123',
+    }, indicators)
+
+    expect(request.ecf.encabezado.comprador?.correoComprador).toBe('factura@ejemplo.com')
+    expect(client.correoComprador).toBe(originalEmail)
+  })
+
+  it('permite dejar el correo de esta factura vacío y rechaza uno inválido', () => {
+    const issuer = { rnc: '101234567', businessName: 'EMPRESA EJEMPLO SRL', address: 'AV. EJEMPLO 123' }
+    const request = buildEcfRequest({ ...draft, buyerEmail: '' }, issuer, indicators)
+    expect(request.ecf.encabezado.comprador?.correoComprador).toBeNull()
+    expect(() => buildEcfRequest({ ...draft, buyerEmail: 'incorrecto' }, issuer, indicators)).toThrow(/correo válido/i)
+  })
+
+  it('emite con un comprador solo de esta factura, sin ID ni registro de cliente', () => {
+    const buyer = prepareInvoiceOnlyBuyer({
+      razonSocialComprador: '  CLIENTE OCASIONAL  ',
+      rncComprador: '131-234-567',
+      identificadorExtranjero: '',
+      contactoComprador: ' Ana ',
+      correoComprador: ' ocasional@ejemplo.com ',
+      direccionComprador: ' Calle Principal 1 ',
+      paisComprador: ' DO ',
+    }, '31')
+    const request = buildEcfRequest({ ...draft, client: buyer }, {
+      rnc: '101234567', businessName: 'EMPRESA EJEMPLO SRL', address: 'AV. EJEMPLO 123',
+    }, indicators)
+
+    expect(buyer).not.toHaveProperty('id')
+    expect(buyer).not.toHaveProperty('tenantId')
+    expect(request.ecf.encabezado.comprador).toMatchObject({
+      razonSocialComprador: 'CLIENTE OCASIONAL',
+      rncComprador: '131234567',
+      contactoComprador: 'Ana',
+      correoComprador: 'ocasional@ejemplo.com',
+      direccionComprador: 'Calle Principal 1',
+      paisComprador: 'DO',
+    })
+  })
+
+  it('valida los datos fiscales del comprador ocasional según el comprobante', () => {
+    const input = {
+      razonSocialComprador: 'Cliente ocasional', rncComprador: '', identificadorExtranjero: '',
+      contactoComprador: '', correoComprador: '', direccionComprador: '', paisComprador: '',
+    }
+    expect(() => prepareInvoiceOnlyBuyer(input, '31')).toThrow(/E31 requiere el RNC/i)
+    expect(prepareInvoiceOnlyBuyer(input, '32').rncComprador).toBeNull()
+    expect(() => prepareInvoiceOnlyBuyer({ ...input, correoComprador: 'inválido' }, '32')).toThrow(/correo válido/i)
   })
 
   it('rechaza nombres en lugar de códigos de provincia y municipio', () => {

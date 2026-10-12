@@ -82,6 +82,7 @@ const error = ref('')
 const catalogWarning = ref('')
 const search = ref('')
 const includeInactive = ref(false)
+const showExtraFilters = ref(false)
 const currentPage = ref(1)
 const showForm = ref(false)
 const editingArticle = ref<Article | null>(null)
@@ -486,8 +487,8 @@ function goToPage(page: number) { currentPage.value = Math.min(Math.max(page, 1)
 </script>
 
 <template>
-  <div class="inventory-page">
-    <div class="page-header mb-4">
+  <div class="inventory-page admin-list-compact">
+    <div class="page-header mb-3">
       <div>
         <div class="breadcrumb-line mb-2"><span>Administración</span><i class="bi bi-chevron-right" /><strong>Inventario</strong></div>
         <h1 class="page-title">Artículos de inventario</h1>
@@ -501,20 +502,23 @@ function goToPage(page: number) { currentPage.value = Math.min(Math.max(page, 1)
       </div>
     </div>
 
-    <div class="row g-3 mb-4">
-      <div class="col-xl-3 col-md-6"><div class="effi-card metric-card"><span class="metric-icon metric-blue"><i class="bi bi-boxes" /></span><div><span class="metric-label">Artículos cargados</span><strong class="metric-value">{{ articles.length }}</strong></div></div></div>
-      <div class="col-xl-3 col-md-6"><div class="effi-card metric-card"><span class="metric-icon metric-success"><i class="bi bi-check2-circle" /></span><div><span class="metric-label">Activos</span><strong class="metric-value">{{ activeCount }}</strong><small v-if="includeInactive && inactiveCount">{{ inactiveCount }} inactivos</small></div></div></div>
-      <div class="col-xl-3 col-md-6"><div class="effi-card metric-card"><span class="metric-icon metric-purple"><i class="bi bi-archive" /></span><div><span class="metric-label">Existencia total</span><strong class="metric-value">{{ totalStock }}</strong></div></div></div>
-      <div class="col-xl-3 col-md-6"><div class="effi-card metric-card"><span class="metric-icon metric-orange"><i class="bi bi-briefcase" /></span><div><span class="metric-label">Servicios</span><strong class="metric-value">{{ serviceCount }}</strong></div></div></div>
+    <div class="row g-2 mb-3">
+      <div class="col-xl-3 col-6"><div class="effi-card metric-card"><span class="metric-icon metric-blue"><i class="bi bi-boxes" /></span><div><span class="metric-label">Artículos</span><strong class="metric-value">{{ articles.length }}</strong></div></div></div>
+      <div class="col-xl-3 col-6"><div class="effi-card metric-card"><span class="metric-icon metric-success"><i class="bi bi-check2-circle" /></span><div><span class="metric-label">Activos</span><strong class="metric-value">{{ activeCount }}</strong><small v-if="includeInactive && inactiveCount">{{ inactiveCount }} inactivos</small></div></div></div>
+      <div class="col-xl-3 col-6"><div class="effi-card metric-card"><span class="metric-icon metric-purple"><i class="bi bi-archive" /></span><div><span class="metric-label">Existencia</span><strong class="metric-value">{{ totalStock }}</strong></div></div></div>
+      <div class="col-xl-3 col-6"><div class="effi-card metric-card"><span class="metric-icon metric-orange"><i class="bi bi-briefcase" /></span><div><span class="metric-label">Servicios</span><strong class="metric-value">{{ serviceCount }}</strong></div></div></div>
     </div>
 
-    <div class="effi-card filters-card mb-4">
-      <div class="row g-3 align-items-end">
-        <div class="col-lg-8">
+    <div class="effi-card filters-card mb-3">
+      <div class="compact-filter-row">
+        <div class="compact-search-field">
           <label for="article-search" class="form-label">Buscar artículos</label>
-          <div class="input-group"><span class="input-group-text"><i class="bi bi-search" /></span><input id="article-search" v-model="search" type="search" class="form-control" placeholder="Nombre, código, descripción o impuesto..."><button v-if="search" type="button" class="btn btn-outline-secondary" @click="clearSearch">Limpiar</button></div>
+          <div class="input-group"><span class="input-group-text"><i class="bi bi-search" /></span><input id="article-search" v-model="search" type="search" class="form-control" placeholder="Nombre, código, descripción o impuesto..."><button v-if="search" type="button" class="btn btn-outline-secondary" aria-label="Limpiar búsqueda" title="Limpiar búsqueda" @click="clearSearch"><i class="bi bi-x-lg" aria-hidden="true" /></button></div>
         </div>
-        <div class="col-lg-4"><div class="form-check form-switch inactive-switch"><input id="include-inactive-articles" v-model="includeInactive" class="form-check-input" type="checkbox" :disabled="loading"><label class="form-check-label" for="include-inactive-articles">Incluir artículos inactivos</label></div></div>
+        <button type="button" class="btn btn-outline-secondary compact-filters-toggle" aria-controls="inventory-extra-filters" :aria-expanded="showExtraFilters" @click="showExtraFilters = !showExtraFilters"><i class="bi bi-sliders me-2" aria-hidden="true" />{{ showExtraFilters ? 'Ocultar' : 'Filtros' }}<span v-if="includeInactive"> (1)</span></button>
+      </div>
+      <div id="inventory-extra-filters" v-show="showExtraFilters" class="compact-extra-filters">
+        <div class="form-check form-switch inactive-switch"><input id="include-inactive-articles" v-model="includeInactive" class="form-check-input" type="checkbox" :disabled="loading"><label class="form-check-label" for="include-inactive-articles">Incluir artículos inactivos</label></div>
       </div>
     </div>
 

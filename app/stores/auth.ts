@@ -1,5 +1,6 @@
 import { defineStore } from 'pinia'
 import type { AuthUser, JwtSessionClaims, ProfileStatus, UserProfile } from '~/types/auth'
+import type { TenantUser } from '~/types/tenant-user'
 import { ApiError } from '~/utils/api'
 import { validateUserProfile } from '~/utils/auth'
 
@@ -83,6 +84,9 @@ export const useAuthStore = defineStore('authStore', () => {
   const profile = useState<UserProfile | null>('auth-profile', () => null)
   const profileStatus = useState<ProfileStatus>('auth-profile-status', () => 'idle')
   const profileError = useState<string>('auth-profile-error', () => '')
+  const currentTenantUser = useState<TenantUser | null>('auth-current-tenant-user', () => null)
+  const currentUserStatus = useState<'idle' | 'loading' | 'ready' | 'error'>('auth-current-user-status', () => 'idle')
+  const currentUserError = useState<string>('auth-current-user-error', () => '')
 
   const isAuthenticated = computed(() => {
     if (!token.value || !expiresAt.value || !user.value?.tenantId) return false
@@ -94,6 +98,7 @@ export const useAuthStore = defineStore('authStore', () => {
     && profileStatus.value === 'ready'
     && profile.value?.empresa.tenantId === user.value?.tenantId,
   ))
+  const isTenantAdmin = computed(() => Boolean(isAuthenticated.value && user.value?.roles.includes('TenantAdmin')))
 
   function clearStoredSession() {
     if (import.meta.server) return
@@ -111,6 +116,9 @@ export const useAuthStore = defineStore('authStore', () => {
     profile.value = null
     profileStatus.value = 'idle'
     profileError.value = ''
+    currentTenantUser.value = null
+    currentUserStatus.value = 'idle'
+    currentUserError.value = ''
     clearStoredSession()
   }
 
@@ -126,6 +134,9 @@ export const useAuthStore = defineStore('authStore', () => {
     profile.value = null
     profileStatus.value = 'idle'
     profileError.value = ''
+    currentTenantUser.value = null
+    currentUserStatus.value = 'idle'
+    currentUserError.value = ''
     return true
   }
 
@@ -151,6 +162,9 @@ export const useAuthStore = defineStore('authStore', () => {
     profile.value = null
     profileStatus.value = 'idle'
     profileError.value = ''
+    currentTenantUser.value = null
+    currentUserStatus.value = 'idle'
+    currentUserError.value = ''
     isInitialized.value = true
 
     if (import.meta.server) return
@@ -185,7 +199,7 @@ export const useAuthStore = defineStore('authStore', () => {
       user.value = {
         ...sessionUser,
         id: loadedProfile.id,
-        name: loadedProfile.userName || loadedProfile.email || sessionUser.name,
+        name: currentTenantUser.value?.displayName || loadedProfile.userName || loadedProfile.email || sessionUser.name,
         userName: loadedProfile.userName || sessionUser.userName,
         email: loadedProfile.email || sessionUser.email,
       }
@@ -214,6 +228,36 @@ export const useAuthStore = defineStore('authStore', () => {
     }
   }
 
+  async function loadCurrentUser() {
+    if (!isAuthenticated.value) throw new Error('No existe una sesión válida para consultar el usuario.')
+
+    currentUserStatus.value = 'loading'
+    currentUserError.value = ''
+    try {
+      const loadedUser = await useTenantUsersApi().getCurrentUser()
+      if (!loadedUser || loadedUser.tenantId !== user.value?.tenantId || loadedUser.id !== user.value.id) {
+        await logout()
+        throw new Error('La sesión no corresponde a un usuario activo. Inicia sesión nuevamente.')
+      }
+
+      currentTenantUser.value = loadedUser
+      currentUserStatus.value = 'ready'
+      user.value = {
+        ...user.value,
+        name: loadedUser.displayName || loadedUser.userName,
+        email: loadedUser.email,
+        userName: loadedUser.userName,
+      }
+      return loadedUser
+    } catch (error) {
+      if (!token.value) throw error
+      currentTenantUser.value = null
+      currentUserStatus.value = 'error'
+      currentUserError.value = error instanceof Error ? error.message : 'No pudimos consultar el usuario autenticado.'
+      throw error
+    }
+  }
+
   async function logout() {
     clearSession()
     await navigateTo('/auth/login')
@@ -222,6 +266,7 @@ export const useAuthStore = defineStore('authStore', () => {
   return {
     isAuthenticated,
     hasCompanyContext,
+    isTenantAdmin,
     user,
     token,
     expiresAt,
@@ -229,9 +274,13 @@ export const useAuthStore = defineStore('authStore', () => {
     profile,
     profileStatus,
     profileError,
+    currentTenantUser,
+    currentUserStatus,
+    currentUserError,
     initFromStorage,
     setSession,
     loadProfile,
+    loadCurrentUser,
     clearSession,
     logout,
   }

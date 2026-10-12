@@ -1,0 +1,51 @@
+@baseUrl = http://localhost:5203
+@token = REEMPLAZAR_CON_JWT
+@userId = a8c931c5-3b39-4a5e-80d7-67942972b748
+
+### Usuario autenticado. Aunque el controlador no muestra [Authorize], enviar JWT.
+POST {{baseUrl}}/api/auth/get-user
+Authorization: Bearer {{token}}
+Accept: application/json
+
+### Listado del tenant. Requiere el rol TenantAdmin en el JWT.
+POST {{baseUrl}}/api/auth/get-tenant-users
+Authorization: Bearer {{token}}
+Accept: application/json
+
+### Crear usuario del tenant. Roles permitidos: TenantAdmin, TenantUser,
+### Manager, Operator, Inv*, Cxc*, Cxp*, Fac* y Cnt*.
+POST {{baseUrl}}/api/auth/add-users
+Authorization: Bearer {{token}}
+Content-Type: application/json
+Accept: application/json
+
+{
+  "firstName": "María",
+  "lastName": "Pérez",
+  "email": "maria@empresa.com",
+  "userName": "maria.ventas",
+  "password": "ClaveSegura1!",
+  "roles": ["FacUser"]
+}
+
+### Cambiar mi contraseña. Requiere la contraseña actual.
+POST {{baseUrl}}/api/auth/change-password
+Authorization: Bearer {{token}}
+Content-Type: application/json
+Accept: application/json
+
+{
+  "currentPassword": "ClaveAnterior1!",
+  "newPassword": "ClaveNueva2!"
+}
+
+### Reiniciar contraseña de usuario del mismo tenant. Requiere TenantAdmin.
+POST {{baseUrl}}/api/auth/users/reset-password
+Authorization: Bearer {{token}}
+Content-Type: application/json
+Accept: application/json
+
+{
+  "userId": "{{userId}}",
+  "newPassword": "Temporal3!"
+}

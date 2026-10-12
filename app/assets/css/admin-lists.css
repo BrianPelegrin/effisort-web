@@ -23,3 +23,161 @@
     min-height: 22rem;
   }
 }
+
+/* Compact list headers shared by clients, inventory and credit notes. */
+.admin-list-compact .effi-card.metric-card,
+.admin-list-compact .metrics-grid .metric-card {
+  min-height: 76px;
+  padding: .7rem .9rem;
+  gap: .7rem;
+}
+
+.admin-list-compact .metric-card .metric-icon {
+  width: 38px;
+  height: 38px;
+  flex: 0 0 38px;
+  border-radius: 11px;
+  font-size: 1.05rem;
+}
+
+.admin-list-compact .metric-card .metric-value,
+.admin-list-compact .metric-card strong {
+  margin-top: .05rem;
+  font-size: 1.15rem;
+  line-height: 1.2;
+}
+
+.admin-list-compact .metric-card .metric-label,
+.admin-list-compact .metric-card small {
+  margin-bottom: 0;
+  font-size: .8rem;
+}
+
+.admin-list-compact .effi-card.filters-card,
+.admin-list-compact.credit-notes-page .filter-card {
+  padding: .85rem 1rem;
+  margin-bottom: 1rem;
+}
+
+.admin-list-compact .compact-filter-row {
+  display: flex;
+  align-items: flex-end;
+  gap: .5rem;
+}
+
+.admin-list-compact .compact-search-field {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+.admin-list-compact .compact-search-field .form-label,
+.admin-list-compact .compact-extra-filters .form-label {
+  margin-bottom: .25rem;
+  font-size: .8rem;
+}
+
+.admin-list-compact .compact-search-field .input-group,
+.admin-list-compact .compact-search-field .form-control {
+  min-width: 0;
+}
+
+.admin-list-compact .compact-search-field .form-control,
+.admin-list-compact .compact-search-field .input-group-text,
+.admin-list-compact .compact-extra-filters .form-control,
+.admin-list-compact .compact-extra-filters .form-select,
+.admin-list-compact .compact-filters-toggle,
+.admin-list-compact .compact-clear-button {
+  min-height: 40px;
+}
+
+.admin-list-compact .compact-filters-toggle,
+.admin-list-compact .compact-clear-button {
+  flex: 0 0 auto;
+  border-radius: 9px;
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+.admin-list-compact .compact-clear-button {
+  width: 40px;
+  padding: 0;
+}
+
+.admin-list-compact .compact-extra-filters {
+  margin-top: .7rem;
+  padding-top: .7rem;
+  border-top: 1px solid #edf0f5;
+}
+
+.admin-list-compact .compact-extra-filters .inactive-switch {
+  min-height: 36px;
+}
+
+.admin-list-compact.credit-notes-page .page-header {
+  margin-bottom: 1rem;
+}
+
+.admin-list-compact.credit-notes-page .metrics-grid {
+  gap: .5rem;
+  margin-bottom: 1rem;
+}
+
+.admin-list-compact .table-card .table-header,
+.admin-list-compact.credit-notes-page .list-heading {
+  padding: 1rem 1.2rem;
+}
+
+@media (max-width: 991.98px) {
+  .admin-list-compact.credit-notes-page .metrics-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .admin-list-compact.credit-notes-page .metrics-grid > :last-child {
+    grid-column: 1 / -1;
+  }
+}
+
+@media (max-width: 575.98px) {
+  .admin-list-compact.credit-notes-page .header-actions {
+    flex-direction: row;
+    gap: .5rem;
+  }
+
+  .admin-list-compact.credit-notes-page .header-actions .btn {
+    min-width: 0;
+    font-size: .82rem;
+  }
+
+  .admin-list-compact .effi-card.metric-card,
+  .admin-list-compact .metrics-grid .metric-card {
+    min-height: 64px;
+    padding: .55rem .65rem;
+    gap: .5rem;
+  }
+
+  .admin-list-compact .metric-card .metric-icon {
+    width: 30px;
+    height: 30px;
+    flex-basis: 30px;
+    font-size: .85rem;
+  }
+
+  .admin-list-compact .metric-card .metric-label,
+  .admin-list-compact .metric-card small {
+    font-size: .72rem;
+  }
+
+  .admin-list-compact .metric-card .metric-value,
+  .admin-list-compact .metric-card strong {
+    font-size: 1rem;
+  }
+
+  .admin-list-compact .compact-filters-toggle {
+    padding-right: .65rem;
+    padding-left: .65rem;
+  }
+
+  .admin-list-compact .compact-search-field .input-group-text {
+    display: none;
+  }
+}

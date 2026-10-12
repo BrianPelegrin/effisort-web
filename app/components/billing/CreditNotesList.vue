@@ -1,5 +1,5 @@
 <template>
-  <main class="credit-notes-page">
+  <main class="credit-notes-page admin-list-compact">
     <header class="page-header">
       <div>
         <div class="breadcrumb-line"><span>Facturación</span><i class="bi bi-chevron-right" /><strong>Notas de crédito</strong></div>
@@ -11,29 +11,34 @@
           <i class="bi bi-arrow-clockwise me-2" />Actualizar
         </button>
         <button ref="newNoteButton" type="button" class="btn btn-primary" @click="openSourceModal">
-          <i class="bi bi-file-earmark-minus me-2" />Nueva nota de crédito
+          <i class="bi bi-file-earmark-minus me-2" /><span class="d-none d-sm-inline">Nueva nota de crédito</span><span class="d-sm-none">Nueva nota</span>
         </button>
       </div>
     </header>
 
     <section class="metrics-grid" aria-label="Resumen de notas de crédito">
-      <article class="metric-card"><span class="metric-icon blue"><i class="bi bi-file-earmark-minus" /></span><div><small>Notas encontradas</small><strong>{{ filteredNotes.length }}</strong></div></article>
+      <article class="metric-card"><span class="metric-icon blue"><i class="bi bi-file-earmark-minus" /></span><div><small>Notas</small><strong>{{ filteredNotes.length }}</strong></div></article>
       <article class="metric-card"><span class="metric-icon green"><i class="bi bi-check-circle" /></span><div><small>Aceptadas</small><strong>{{ acceptedCount }}</strong></div></article>
       <article class="metric-card"><span class="metric-icon purple"><i class="bi bi-cash-stack" /></span><div><small>Total acreditado</small><strong>{{ formatCurrency(creditedAmount) }}</strong></div></article>
     </section>
 
     <section class="filter-card">
-      <div class="row g-3 align-items-end">
-        <div class="col-lg-5">
+      <div class="compact-filter-row">
+        <div class="compact-search-field">
           <label for="credit-note-search" class="form-label">Buscar nota</label>
           <div class="input-group"><span class="input-group-text"><i class="bi bi-search" /></span><input id="credit-note-search" v-model="filters.search" type="search" class="form-control" placeholder="E34, RNC o mensaje fiscal"></div>
         </div>
-        <div class="col-md-4 col-lg-3">
-          <label for="credit-note-status" class="form-label">Estado</label>
-          <select id="credit-note-status" v-model="filters.status" class="form-select"><option value="">Todos</option><option value="accepted">Aceptadas</option><option value="rejected">Rechazadas</option><option value="pending">En proceso</option></select>
+        <button type="button" class="btn btn-outline-secondary compact-filters-toggle" aria-controls="credit-note-extra-filters" :aria-expanded="showExtraFilters" @click="showExtraFilters = !showExtraFilters"><i class="bi bi-sliders me-2" aria-hidden="true" />{{ showExtraFilters ? 'Ocultar' : 'Filtros' }}<span v-if="activeExtraFilterCount"> ({{ activeExtraFilterCount }})</span></button>
+        <button v-if="filters.search || filters.status || filters.fromDate" type="button" class="btn btn-outline-secondary compact-clear-button" aria-label="Limpiar filtros" title="Limpiar filtros" @click="clearFilters"><i class="bi bi-x-lg" aria-hidden="true" /></button>
+      </div>
+      <div id="credit-note-extra-filters" v-show="showExtraFilters" class="compact-extra-filters">
+        <div class="row g-2">
+          <div class="col-md-6">
+            <label for="credit-note-status" class="form-label">Estado</label>
+            <select id="credit-note-status" v-model="filters.status" class="form-select"><option value="">Todos</option><option value="accepted">Aceptadas</option><option value="rejected">Rechazadas</option><option value="pending">En proceso</option></select>
+          </div>
+          <div class="col-md-6"><label for="credit-note-from" class="form-label">Desde</label><input id="credit-note-from" v-model="filters.fromDate" type="date" class="form-control"></div>
         </div>
-        <div class="col-md-4 col-lg-2"><label for="credit-note-from" class="form-label">Desde</label><input id="credit-note-from" v-model="filters.fromDate" type="date" class="form-control"></div>
-        <div class="col-md-4 col-lg-2"><button type="button" class="btn btn-light w-100" @click="clearFilters"><i class="bi bi-x-circle me-2" />Limpiar</button></div>
       </div>
     </section>
 
@@ -112,6 +117,8 @@ const newNoteButton = ref<HTMLButtonElement | null>(null)
 const sourceModalElement = ref<HTMLElement | null>(null)
 let sourceModalInstance: BootstrapModalInstance | null = null
 const filters = reactive({ search: '', status: '', fromDate: '' })
+const showExtraFilters = ref(false)
+const activeExtraFilterCount = computed(() => [filters.status, filters.fromDate].filter(Boolean).length)
 
 const filteredNotes = computed(() => {
   const search = filters.search.trim().toLocaleLowerCase('es')

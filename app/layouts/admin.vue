@@ -1,12 +1,14 @@
 <script setup lang="ts">
 import AdminNavbar from '~/components/layout/AdminNavbar.vue'
 import AdminSidebar from '~/components/layout/AdminSidebar.vue'
+import ChangePasswordDialog from '~/components/users/ChangePasswordDialog.vue'
 
 const SIDEBAR_PREFERENCE_KEY = 'effisort-sidebar-collapsed'
 const MOBILE_SIDEBAR_QUERY = '(max-width: 1199.98px)'
 
 const isSidebarCollapsed = ref(false)
 const isMobileSidebarOpen = ref(false)
+const passwordDialog = ref<InstanceType<typeof ChangePasswordDialog> | null>(null)
 let mobileSidebarMedia: MediaQueryList | null = null
 
 function isMobileViewport() {
@@ -25,6 +27,11 @@ function toggleSidebar() {
 
 function closeMobileSidebar() {
   isMobileSidebarOpen.value = false
+}
+
+function openChangePassword() {
+  closeMobileSidebar()
+  passwordDialog.value?.open()
 }
 
 function syncSidebarForViewport(event?: MediaQueryListEvent) {
@@ -93,6 +100,7 @@ useHead({
       :collapsed="isSidebarCollapsed"
       @toggle="toggleSidebar"
       @navigate="closeMobileSidebar"
+      @change-password="openChangePassword"
     />
 
     <button
@@ -109,6 +117,7 @@ useHead({
         <slot />
       </div>
     </div>
+    <ChangePasswordDialog ref="passwordDialog" />
   </div>
 </template>
 

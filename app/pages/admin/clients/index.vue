@@ -62,6 +62,7 @@ const loading = ref(true)
 const error = ref('')
 const search = ref('')
 const includeInactive = ref(false)
+const showExtraFilters = ref(false)
 const currentPage = ref(1)
 const showForm = ref(false)
 const editingClient = ref<Client | null>(null)
@@ -599,8 +600,8 @@ function displayValue(value: string | number | null | undefined) {
 </script>
 
 <template>
-  <div class="clients-page">
-    <div class="page-header mb-4">
+  <div class="clients-page admin-list-compact">
+    <div class="page-header mb-3">
       <div>
         <div class="breadcrumb-line mb-2">
           <span>Administración</span>
@@ -623,17 +624,17 @@ function displayValue(value: string | number | null | undefined) {
       </div>
     </div>
 
-    <div class="row g-3 mb-4">
-      <div class="col-lg-4 col-md-6">
+    <div class="row g-2 mb-3">
+      <div class="col-lg-4 col-6">
         <div class="effi-card metric-card">
           <span class="metric-icon metric-blue"><i class="bi bi-people" /></span>
           <div>
-            <span class="metric-label">Clientes cargados</span>
+            <span class="metric-label">Clientes</span>
             <strong class="metric-value">{{ clients.length }}</strong>
           </div>
         </div>
       </div>
-      <div class="col-lg-4 col-md-6">
+      <div class="col-lg-4 col-6">
         <div class="effi-card metric-card">
           <span class="metric-icon metric-success"><i class="bi bi-person-check" /></span>
           <div>
@@ -643,20 +644,20 @@ function displayValue(value: string | number | null | undefined) {
           </div>
         </div>
       </div>
-      <div class="col-lg-4 col-md-6">
+      <div class="col-lg-4 col-12">
         <div class="effi-card metric-card">
           <span class="metric-icon metric-purple"><i class="bi bi-envelope-check" /></span>
           <div>
-            <span class="metric-label">Con correo registrado</span>
+            <span class="metric-label">Con correo</span>
             <strong class="metric-value">{{ clientsWithEmail }}</strong>
           </div>
         </div>
       </div>
     </div>
 
-    <div class="effi-card filters-card mb-4">
-      <div class="row g-3 align-items-end">
-        <div class="col-lg-8">
+    <div class="effi-card filters-card mb-3">
+      <div class="compact-filter-row">
+        <div class="compact-search-field">
           <label for="client-search" class="form-label">Buscar clientes</label>
           <div class="input-group">
             <span class="input-group-text"><i class="bi bi-search" /></span>
@@ -667,24 +668,24 @@ function displayValue(value: string | number | null | undefined) {
               class="form-control effi-input"
               placeholder="Razón social, RNC, código, contacto o correo..."
             >
-            <button v-if="search" type="button" class="btn btn-outline-secondary" @click="clearSearch">
-              Limpiar
-            </button>
+            <button v-if="search" type="button" class="btn btn-outline-secondary" aria-label="Limpiar búsqueda" title="Limpiar búsqueda" @click="clearSearch"><i class="bi bi-x-lg" aria-hidden="true" /></button>
           </div>
         </div>
-
-        <div class="col-lg-4">
-          <div class="form-check form-switch inactive-switch">
-            <input
-              id="include-inactive"
-              v-model="includeInactive"
-              class="form-check-input"
-              type="checkbox"
-              role="switch"
-              :disabled="loading"
-            >
-            <label class="form-check-label" for="include-inactive">Incluir clientes inactivos</label>
-          </div>
+        <button type="button" class="btn btn-outline-secondary compact-filters-toggle" aria-controls="client-extra-filters" :aria-expanded="showExtraFilters" @click="showExtraFilters = !showExtraFilters">
+          <i class="bi bi-sliders me-2" aria-hidden="true" />{{ showExtraFilters ? 'Ocultar' : 'Filtros' }}<span v-if="includeInactive"> (1)</span>
+        </button>
+      </div>
+      <div id="client-extra-filters" v-show="showExtraFilters" class="compact-extra-filters">
+        <div class="form-check form-switch inactive-switch">
+          <input
+            id="include-inactive"
+            v-model="includeInactive"
+            class="form-check-input"
+            type="checkbox"
+            role="switch"
+            :disabled="loading"
+          >
+          <label class="form-check-label" for="include-inactive">Incluir clientes inactivos</label>
         </div>
       </div>
     </div>

@@ -1,5 +1,5 @@
 import type { Article, BillingIndicator } from '~/types/article'
-import type { Client } from '~/types/client'
+import type { ClientWrite } from '~/types/client'
 import type { CompanyProfile } from '~/types/auth'
 import type {
   EcfApiResult,
@@ -67,8 +67,68 @@ export interface InvoiceDraft {
   internalReference?: string
   purchaseOrder?: string
   notes?: string
-  client?: Client
+  client?: ClientWrite
+  buyerEmail?: string | null
   items: InvoiceDraftItem[]
+}
+
+export interface InvoiceOnlyBuyerInput {
+  razonSocialComprador: string
+  rncComprador: string
+  identificadorExtranjero: string
+  contactoComprador: string
+  correoComprador: string
+  direccionComprador: string
+  paisComprador: string
+}
+
+export function prepareInvoiceOnlyBuyer(input: InvoiceOnlyBuyerInput, documentType: string): ClientWrite {
+  const name = input.razonSocialComprador.trim()
+  const rnc = input.rncComprador.replace(/[\s-]/g, '')
+  const foreignId = input.identificadorExtranjero.trim()
+  const contact = input.contactoComprador.trim()
+  const email = input.correoComprador.trim()
+  const address = input.direccionComprador.trim()
+  const country = input.paisComprador.trim()
+  const errors: string[] = []
+
+  if (!name || name.length > 150) errors.push('Escribe el nombre o razón social del comprador (máximo 150 caracteres).')
+  if (documentType === '31' && !rnc) errors.push('El comprobante E31 requiere el RNC o cédula del comprador.')
+  if (rnc && !/^(?:\d{9}|\d{11})$/.test(rnc)) errors.push('El RNC o cédula debe tener 9 u 11 dígitos.')
+  if (foreignId.length > 20) errors.push('El identificador extranjero no puede superar 20 caracteres.')
+  if (contact.length > 80) errors.push('El contacto no puede superar 80 caracteres.')
+  if (!isValidInvoiceBuyerEmail(email)) errors.push('Escribe un correo válido de hasta 80 caracteres.')
+  if (address.length > 100) errors.push('La dirección no puede superar 100 caracteres.')
+  if (country.length > 60) errors.push('El país no puede superar 60 caracteres.')
+  if (errors.length) throw new EcfValidationError(errors)
+
+  return {
+    razonSocialComprador: name,
+    rncComprador: rnc || null,
+    identificadorExtranjero: foreignId || null,
+    contactoComprador: contact || null,
+    correoComprador: email || null,
+    direccionComprador: address || null,
+    paisComprador: country || null,
+    municipioComprador: null,
+    provinciaComprador: null,
+    fechaEntrega: null,
+    contactoEntrega: null,
+    direccionEntrega: null,
+    telefonoAdicional: null,
+    codigoInternoComprador: null,
+    responsablePago: null,
+    informacionAdicionalComprador: null,
+    tipoPrecio: null,
+    tipoPago: null,
+    terminoPago: null,
+    activo: true,
+  }
+}
+
+export function isValidInvoiceBuyerEmail(email: string) {
+  const normalized = email.trim()
+  return !normalized || (normalized.length <= 80 && /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(normalized))
 }
 
 export interface InvoiceCalculation {
@@ -248,7 +308,7 @@ export function buildEcfRequest(
     identificadorExtranjero: nullableText(draft.client.identificadorExtranjero),
     razonSocialComprador: nullableText(draft.client.razonSocialComprador),
     contactoComprador: normalizeBuyerContact(draft.client.contactoComprador),
-    correoComprador: null,
+    correoComprador: nullableText(draft.buyerEmail ?? draft.client.correoComprador),
     direccionComprador: nullableText(draft.client.direccionComprador),
     municipioComprador: nullableText(draft.client.municipioComprador),
     provinciaComprador: nullableText(draft.client.provinciaComprador),
@@ -377,6 +437,8 @@ export function validateInvoiceDraft(
   if (draft.currency !== 'DOP') errors.push('La primera integración fiscal sólo permite facturas en DOP.')
   if (Number(draft.discount || 0) !== 0) errors.push('El descuento global debe ser cero hasta implementar su distribución fiscal por indicador.')
   if (!draft.client) errors.push('Selecciona un cliente.')
+  if (draft.client && !draft.client.razonSocialComprador?.trim()) errors.push('Escribe el nombre o razón social del comprador.')
+  if (!isValidInvoiceBuyerEmail(draft.buyerEmail ?? draft.client?.correoComprador ?? '')) errors.push('Escribe un correo válido de hasta 80 caracteres para esta factura.')
   if (draft.documentType === '31' && !draft.client?.rncComprador?.trim()) errors.push('El comprobante E31 requiere el RNC del comprador.')
   if (draft.client?.municipioComprador && !/^\d{6}$/.test(draft.client.municipioComprador.trim())) errors.push('El municipio del comprador debe ser un código de seis dígitos.')
   if (draft.client?.provinciaComprador && !/^\d{6}$/.test(draft.client.provinciaComprador.trim())) errors.push('La provincia del comprador debe ser un código de seis dígitos.')

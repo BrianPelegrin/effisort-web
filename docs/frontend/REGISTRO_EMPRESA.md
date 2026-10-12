@@ -1,6 +1,6 @@
 # Registro de empresa: integración end-to-end para frontend
 
-Documento verificado el **20 de septiembre de 2026** contra `origin/main` del proyecto **EffisortEmisionEcf** (`3db84ed`). Los dos commits remotos más recientes modifican correo electrónico, pero no cambian el contrato de registro descrito aquí.
+Documento verificado el **11 de octubre de 2026** contra `origin/main` del proyecto **EffisortEmisionEcf** (`a3dd471`).
 
 Esta guía cubre el alta pública de una empresa, su primer usuario administrador y la transición hacia login, perfil y preparación fiscal. Para el resto de la API consultar [`README.md`](./README.md) y [`api-types.ts`](./api-types.ts).
 
@@ -19,7 +19,7 @@ Esta guía cubre el alta pública de una empresa, su primer usuario administrado
 | Transacción única | No existe |
 | Idempotencia | No existe |
 | Reintento automático | Prohibido |
-| Respuesta de éxito | Inestable actualmente por falta de `await` |
+| Respuesta de éxito | JSON de negocio; el controlador espera (`await`) el servicio |
 
 El endpoint no crea únicamente una fila `Empresa`. También crea o reutiliza el tenant, inserta el usuario de Identity, relaciona usuario/tenant/rol, crea la empresa, registra diez rangos de e-CF, crea directorios y opcionalmente copia archivos.
 
@@ -40,7 +40,7 @@ flowchart TD
   I -->|400| J[Corregir campos o duplicados]
   I -->|429| K[Esperar; no reenviar automáticamente]
   I -->|timeout/500| L[Resultado desconocido; no reenviar]
-  I -->|200 provisional| M[Ir al login]
+  I -->|200 con JSON de éxito| M[Ir al login]
   M --> N[POST /api/auth/login]
   N -->|200 + JWT| O[GET /api/auth/perfil]
   O -->|200| P[Guardar sesión y empresa]
@@ -57,7 +57,7 @@ flowchart TD
 | `validating` | Validación local | Esperar |
 | `submitting` | POST en curso | Bloquear formulario y doble clic |
 | `validation_error` | `400` atribuible a campos | Corregir y reenviar manualmente |
-| `provisional_success` | `200` | Ir al login; no consumir el body como contrato estable |
+| `registration_success` | `200` | Leer sólo propiedades no sensibles; ir al login |
 | `unknown_result` | Timeout, desconexión o `500` | Ir al login o soporte; no repetir el registro |
 | `authenticated` | Login y perfil correctos | Entrar a la aplicación |
 | `fiscal_setup_required` | Perfil sin datos necesarios para emitir | Bloquear facturación |
@@ -161,23 +161,23 @@ La interfaz usa camelCase para el estado local. Al crear `FormData` deben utiliz
 
 | Campo multipart | Obligatorio | Backend declara | Regla práctica del frontend |
 |---|---:|---|---|
-| `Rnc` | Sí | Máximo 11 | `trim()`, 1–11 caracteres; no imponer otra regla fiscal sin decisión de producto |
-| `RazonSocial` | Sí | Máximo 80 | Máximo **50**, porque se copia a columnas de Empresa de 50 |
-| `ActividadEconomica` | Sí | Máximo 100 | `trim()`, máximo 100 |
-| `ProvinciaId` | Sí | Longitud exacta 6 | Elegir del catálogo y enviar su código |
-| `MunicipioId` | Sí | Longitud exacta 6 | Debe pertenecer a la provincia elegida |
-| `FullName` | Sí | Sin longitud máxima en DTO | Solicitarlo, aunque el servicio vigente no lo persiste |
-| `PhoneNumber` | Sí | Sin formato/máximo en DTO | Máximo **12**, porque termina en `Empresa.Telefono` |
-| `UserName` | Sí | Mínimo 6 | `trim()`, mínimo 6; comprobar disponibilidad sólo mediante el POST |
-| `Email` | Sí | Formato email | Máximo **80**, porque termina en `Empresa.Correo`; normalizar espacios/case |
-| `ConfirmEmail` | Sí | Formato email | Comparar con `Email` en frontend; el backend no los compara |
-| `Password` | Sí | Mínimo 6 | No recortar ni transformar; mostrar indicador de seguridad propio |
-| `ConfirmPassword` | Sí | Mínimo 6 | Debe coincidir exactamente; el backend sí realiza esta comparación |
+| `Rnc` | Sí | Sin anotaciones explícitas; base de datos máximo 11 | `trim()`, 1–11 caracteres; no imponer otra regla fiscal sin decisión de producto |
+| `RazonSocial` | Sí | Sin anotaciones explícitas; Empresa limita ambos nombres a 50 | `trim()`, máximo **50** |
+| `ActividadEconomica` | Sí | Sin anotaciones explícitas; Empresa limita a 100 | `trim()`, máximo 100 |
+| `ProvinciaId` | Sí | Sin longitud explícita; catálogo usa código de 6 caracteres | Elegir del catálogo y enviar su código |
+| `MunicipioId` | Sí | Sin longitud explícita; catálogo usa código de 6 caracteres | Debe pertenecer a la provincia elegida |
+| `FullName` | Sí | Sin anotaciones ni longitud máxima | Solicitarlo, aunque el servicio vigente no lo persiste |
+| `PhoneNumber` | Sí | Sin anotaciones; Empresa limita teléfono a 12 | Máximo **12** |
+| `UserName` | Sí | Sin anotación de mínimo o formato | `trim()`; comprobar disponibilidad mediante el POST |
+| `Email` | Sí | Sin anotación de formato; Empresa limita correo a 80 | Validar formato en frontend; máximo **80**; normalizar espacios/case |
+| `ConfirmEmail` | Sí | Sin anotación de formato | Validar formato y comparar con `Email`; backend no los compara |
+| `Password` | Sí | Sin anotación de longitud | No recortar ni transformar; validar política de producto en frontend |
+| `ConfirmPassword` | Sí | Sin anotación de longitud | Debe coincidir exactamente; el backend sí compara igualdad |
 | `LogoEmpresa` | No | `IFormFile` | PNG con MIME exacto `image/png` |
 | `CertificadoFirmaDigital` | No | `IFormFile` | P12 con MIME exacto `application/x-pkcs12` |
 | `PasswordCertificadoFirmaDigital` | No | String | Si se adjunta P12, exigir clave; no persistirla en el navegador |
 
-Las restricciones prácticas más cortas de razón social, teléfono y email evitan que el DTO pase la validación y luego falle al guardar `Empresa`.
+El DTO actual no tiene atributos `Required`, `StringLength`, `MinLength`, `EmailAddress` ni validaciones equivalentes. Sus cadenas son no anulables y el proyecto tiene nullable habilitado, por lo que ASP.NET Core puede aplicar validación implícita de requerido con `[ApiController]`; aun así, el frontend debe validar todos los campos y no depender de máximos, formato email o longitudes que el endpoint no declara. Los máximos prácticos de RNC, razón social, teléfono y email provienen de la entidad `Empresa`/base de datos.
 
 El backend no define un máximo de archivo específico. El frontend puede aplicar un límite de producto, pero no debe documentarlo como límite de la API hasta acordarlo con backend.
 
@@ -281,9 +281,9 @@ No agregar retry al cliente HTTP para esta función. Un `AbortController` debe u
 
 ## 8. Respuestas
 
-### 8.1 Validación automática: `400`
+### 8.1 Binding y validación: `400`
 
-Por `[ApiController]`, errores de anotaciones suelen responder `ValidationProblemDetails`:
+El DTO dejó de declarar las validaciones explícitas que tenía anteriormente. Con `[ApiController]`, errores de binding y las reglas implícitas de campos no anulables pueden responder `ValidationProblemDetails`. El texto exacto depende del runtime y de qué campo falte:
 
 ```json
 {
@@ -291,8 +291,7 @@ Por `[ApiController]`, errores de anotaciones suelen responder `ValidationProble
   "title": "One or more validation errors occurred.",
   "status": 400,
   "errors": {
-    "Rnc": ["El RNC es obligatorio"],
-    "ProvinciaId": ["La longitud debe ser de 6 posiciones."]
+    "Rnc": ["..."]
   },
   "traceId": "..."
 }
@@ -324,9 +323,9 @@ Mapeo sugerido:
 
 El controlador construye también un `BadRequest` para tenant duplicado, pero no lo retorna. En el caso normal, la verificación posterior de empresa duplicada sí corta el flujo. En un estado parcial donde exista tenant pero no empresa, el servicio puede reutilizar y actualizar ese tenant.
 
-### 8.3 Resultado de negocio pretendido
+### 8.3 Respuesta `200` actual
 
-El servicio intenta producir este JSON:
+El controlador ahora espera el servicio y devuelve este JSON de negocio:
 
 ```json
 {
@@ -338,23 +337,23 @@ El servicio intenta producir este JSON:
 }
 ```
 
-Está disponible en [`examples/registro-empresa-respuesta-esperada.json`](./examples/registro-empresa-respuesta-esperada.json), pero **no debe tratarse como contrato HTTP estable**.
+El ejemplo está en [`examples/registro-empresa-respuesta-esperada.json`](./examples/registro-empresa-respuesta-esperada.json). El orden de propiedades no es significativo.
 
-### 8.4 Defecto actual de la respuesta `200`
+### 8.4 Contraseña incluida en la respuesta
 
 El controlador ejecuta:
 
 ```csharp
-return Ok(_authService.Registrar(model));
+var x = await _authService.Registrar(model);
+return Ok(x);
 ```
 
-Falta `await`. Por tanto, entrega un `Task` al serializador en lugar del resultado de negocio. El payload real puede no tener la forma anterior y la respuesta puede completarse mientras el trabajo continúa o falla. En TypeScript, `RegisterResponse` permanece como `unknown`.
+La respuesta es predecible, pero el servicio incluye `model.Password` en el objeto retornado. Es una filtración de secreto que el backend debería corregir. El tipo describe el transporte real; la UI debe ignorar esa propiedad, nunca mostrarla ni persistirla.
 
 Reglas frontend mientras exista este defecto:
 
-- Considerar `200` un éxito **provisional**.
-- No leer `id`, `message` ni cualquier otra propiedad para tomar decisiones críticas.
-- Nunca guardar ni mostrar `password` si apareciera.
+- Considerar `200` una respuesta de éxito y leer `id`, `userName`, `email` y `message` sólo si son útiles para la UI.
+- Nunca leer, guardar, registrar ni mostrar `password`.
 - Limpiar del estado los passwords y archivos al abandonar la pantalla.
 - Navegar al login como verificación independiente.
 - Si el login falla, no repetir automáticamente el registro; ofrecer reintento manual de login y soporte.
@@ -395,7 +394,7 @@ sequenceDiagram
   opt Certificado enviado
     C->>FS: Copiar P12
   end
-  C-->>F: 200 con respuesta actualmente inestable
+  C-->>F: 200 JSON {id, userName, email, password, message}
 ```
 
 ### 9.1 Entidades y valores derivados
@@ -410,7 +409,7 @@ sequenceDiagram
 | Secuencias | E31, E32, E33, E34, E41, E43, E44, E45, E46 y E47 |
 | Directorios | Certificados, logos, entradas/salidas, acuses, aprobaciones y carpetas por tipo e-CF |
 
-Las secuencias se crean con plantilla de diez ceros, rango `1–50`, última secuencia `0`, activas y vencimiento al 31 de diciembre del año actual + 2. Esto no demuestra que el tenant tenga rangos autorizados para producción.
+Las secuencias se crean con plantilla de diez ceros, rango `1–50`, última secuencia `0`, activas y vencimiento al 31 de diciembre del año siguiente según la fecha del servidor (`DateTime.Now.AddYears(1)`). Esto no demuestra que el tenant tenga rangos autorizados para producción.
 
 ### 9.2 Valores por defecto de `Empresa`
 
@@ -421,7 +420,7 @@ Las secuencias se crean con plantilla de diez ceros, rango `1–50`, última sec
 | `Sucursal` | `"Principal"` |
 | `Correo` | `Email` |
 | `Telefono` | `PhoneNumber` |
-| `AmbienteTrabajo` | `"TesteCF"` |
+| `AmbienteTrabajo` | Valor de configuración `DGII:Env` (en `appsettings.json` actual: `CerteCF`) |
 | `IndicadorEnvioDiferido` | `false` |
 | `IndicadorMontoGravado` | `false` |
 | `AgregarValorPagar` | `false` |
@@ -576,7 +575,7 @@ Provincia → municipio → completar empresa/usuario → adjuntar activos opcio
 - [ ] Existe estado de loading y bloqueo de doble submit.
 - [ ] No existe retry automático.
 - [ ] Se soportan errores JSON, texto, vacío, timeout y `429`.
-- [ ] La respuesta `200` se trata como provisional y `unknown`.
+- [ ] La respuesta `200` se reconoce como JSON con tipo conocido; el password se ignora.
 - [ ] El registro nunca crea una sesión directamente.
 - [ ] Login y perfil verifican el resultado real del alta.
 - [ ] La UI diferencia cuenta creada de empresa lista para facturar.
@@ -587,7 +586,7 @@ Provincia → municipio → completar empresa/usuario → adjuntar activos opcio
 
 El frontend no puede resolver por sí solo:
 
-1. Agregar `await` a `Registrar` y definir una respuesta estable que no incluya password.
+1. Quitar `Password` de la respuesta de `Registrar` y formalizarla con un DTO de respuesta.
 2. Ejecutar todo el registro en una transacción o implementar compensación.
 3. Retornar y validar los resultados de copia de logo/certificado.
 4. Comparar `Email` con `ConfirmEmail` también en servidor.

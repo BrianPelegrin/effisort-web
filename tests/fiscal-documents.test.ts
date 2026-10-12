@@ -3,6 +3,7 @@ import type { FiscalDocument } from '~/types/ecf'
 import {
   createFiscalDocumentSearchQuery,
   ensureFiscalDocumentsDescending,
+  filterFiscalDocumentsByIssueDateRange,
   validateFiscalDocumentSearchResponse,
 } from '~/utils/fiscal-documents'
 
@@ -65,5 +66,20 @@ describe('bandeja fiscal', () => {
     ] as FiscalDocument[]
 
     expect(ensureFiscalDocumentsDescending(items)).toBe(items)
+  })
+
+  it('filtra el rango de emisión de forma inclusiva en ambos formatos de fecha', () => {
+    const items = [
+      { id: 1, fechaEmision: '01-08-2026' },
+      { id: 2, fechaEmision: '2026-08-15T14:30:00Z' },
+      { id: 3, fechaEmision: '31-08-2026' },
+      { id: 4, fechaEmision: '01-09-2026' },
+      { id: 5, fechaEmision: null },
+    ] as FiscalDocument[]
+
+    expect(filterFiscalDocumentsByIssueDateRange(items, '2026-08-01', '2026-08-31').map(item => item.id)).toEqual([1, 2, 3])
+    expect(filterFiscalDocumentsByIssueDateRange(items, '2026-08-15', '').map(item => item.id)).toEqual([2, 3, 4])
+    expect(filterFiscalDocumentsByIssueDateRange(items, '', '2026-08-01').map(item => item.id)).toEqual([1])
+    expect(filterFiscalDocumentsByIssueDateRange(items, '', '')).toBe(items)
   })
 })

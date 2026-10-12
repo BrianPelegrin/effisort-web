@@ -108,21 +108,76 @@ export const REGISTER_FORM_DATA_FIELDS = {
 export type RegisterFormDataFieldName =
   (typeof REGISTER_FORM_DATA_FIELDS)[keyof typeof REGISTER_FORM_DATA_FIELDS];
 
-/** Resultado pretendido por AuthService.Registrar cuando el controlador lo espere correctamente. */
-export interface RegisterIntendedResult {
+/** JSON que devuelve POST /api/auth/register cuando termina con 200. */
+export interface RegisterResponse {
   id: string;
   userName: string | null;
   email: string | null;
-  /** @deprecated Fuga actual del backend. Ignorar y no persistir. */
-  password: string | null;
+  /** @deprecated El backend filtra la contraseña recibida. Ignorar y no persistir. */
+  password: string;
   message: string;
 }
 
-/**
- * Contrato HTTP vigente: inestable porque el controlador envuelve Task en Ok
- * sin hacer await. Validar con unknown hasta corregir el backend.
- */
-export type RegisterResponse = unknown;
+// ---------------------------------------------------------------------------
+// Usuarios del tenant
+// ---------------------------------------------------------------------------
+
+/** Roles aceptados por POST /api/auth/add-users. */
+export const TENANT_USER_ROLES = [
+  "TenantAdmin",
+  "TenantUser",
+  "Manager",
+  "Operator",
+  "InvUser",
+  "InvManager",
+  "InvOperator",
+  "CxcUser",
+  "CxcManager",
+  "CxcOperator",
+  "CxpUser",
+  "CxpManager",
+  "CxpOperator",
+  "FacUser",
+  "FacManager",
+  "FacOperator",
+  "CntUser",
+  "CntManager",
+  "CntOperator",
+] as const;
+
+export type TenantUserRole = (typeof TENANT_USER_ROLES)[number];
+
+export interface CreateTenantUserRequest {
+  firstName: string;
+  lastName: string;
+  email: string;
+  userName: string;
+  password: string;
+  roles: TenantUserRole[];
+}
+
+export interface TenantUser {
+  id: string;
+  tenantId: Guid;
+  userName: string;
+  email: string;
+  displayName: string;
+  roles: string[];
+}
+
+export interface ChangePasswordRequest {
+  currentPassword: string;
+  newPassword: string;
+}
+
+export interface ResetTenantUserPasswordRequest {
+  userId: string;
+  newPassword: string;
+}
+
+export interface SuccessMessageResponse {
+  message: string;
+}
 
 export interface ForgotPasswordRequest {
   email: string;
@@ -728,7 +783,7 @@ export interface SubRecargo {
 }
 
 export interface OtraMonedaDetalle {
-  precioOtraMoneda?: number;
+  precioOtraMoneda?: string;
   descuentoOtraMoneda?: number;
   recargoOtraMoneda?: number;
   montoItemOtraMoneda?: number;

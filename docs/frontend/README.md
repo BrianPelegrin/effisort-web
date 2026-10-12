@@ -2,13 +2,17 @@
 
 Documento rehecho y verificado contra el código vigente del proyecto **EffisortEmisionEcf** el **10 de agosto de 2026** (`7755091`). Esta es la fuente de verdad para que Codex implemente el frontend; no usar contratos tomados de otros proyectos WebAPI.
 
+Las secciones de registro y usuarios, junto con [`REGISTRO_EMPRESA.md`](./REGISTRO_EMPRESA.md) y [`USUARIOS_TENANT.md`](./USUARIOS_TENANT.md), fueron revisadas nuevamente el **11 de octubre de 2026** contra `a3dd471`; el resto de contratos de esta guía conserva la fecha de verificación indicada arriba.
+
 Archivos complementarios:
 
 - [`api-types.ts`](./api-types.ts): contratos TypeScript reutilizables.
 - [`REGISTRO_EMPRESA.md`](./REGISTRO_EMPRESA.md): integración end-to-end del alta de empresa y primer usuario.
+- [`USUARIOS_TENANT.md`](./USUARIOS_TENANT.md): gestión de usuarios, roles y contraseñas dentro del tenant.
 - [`examples/login.json`](./examples/login.json): login.
 - [`examples/registro-empresa-solicitud.http`](./examples/registro-empresa-solicitud.http): solicitudes multipart con y sin archivos.
 - [`examples/registro-empresa-respuesta-esperada.json`](./examples/registro-empresa-respuesta-esperada.json): resultado de negocio pretendido del registro.
+- [`examples/usuarios-tenant.http`](./examples/usuarios-tenant.http): solicitudes de usuarios del tenant ejecutables con REST Client.
 - [`examples/perfil-respuesta.json`](./examples/perfil-respuesta.json): usuario y empresa autenticados.
 - [`examples/cliente.json`](./examples/cliente.json): alta/edición de cliente.
 - [`examples/articulo.json`](./examples/articulo.json): alta/edición de artículo.
@@ -118,9 +122,14 @@ Codex debe implementar esas operaciones normalmente, pero documentar el bloqueo 
 |---|---|---|---|---|
 | POST | `/api/auth/login` | Pública | JSON | `{ token }` |
 | GET | `/api/auth/perfil` | JWT efectivo | Sin body | Usuario y empresa en JSON |
-| POST | `/api/auth/register` | Pública | `multipart/form-data` | Contrato inestable: el controlador devuelve `Ok(Task)` |
+| POST | `/api/auth/register` | Pública | `multipart/form-data` | JSON de éxito; ver guía específica por validaciones y efectos secundarios |
 | POST | `/api/auth/forgot-password` | Pública | JSON | Texto |
 | POST | `/api/auth/reset-password` | Pública | JSON | Texto |
+| POST | `/api/auth/get-user` | JWT requerido en la práctica | Sin body | Usuario actual o `null` |
+| POST | `/api/auth/get-tenant-users` | `TenantAdmin` | Sin body | Usuarios del tenant |
+| POST | `/api/auth/add-users` | `TenantAdmin` | JSON | Crea usuario del tenant |
+| POST | `/api/auth/change-password` | JWT | JSON | Cambia contraseña propia |
+| POST | `/api/auth/users/reset-password` | `TenantAdmin` | JSON | Reinicia contraseña de un usuario del tenant |
 
 ### 2.2 Clientes
 
@@ -332,18 +341,18 @@ La entrada es **`multipart/form-data`**, no JSON. Nombres exactos:
 
 | Campo | Obligatorio | Regla |
 |---|---:|---|
-| `Rnc` | Sí | Máximo 11 |
-| `RazonSocial` | Sí | Máximo 80 |
-| `ActividadEconomica` | Sí | Máximo 100 |
-| `ProvinciaId` | Sí | Exactamente 6 |
-| `MunicipioId` | Sí | Exactamente 6 |
+| `Rnc` | Sí | Sin atributo de longitud; máximo práctico 11 por entidad Empresa |
+| `RazonSocial` | Sí | Sin atributo de longitud; máximo práctico 50 por entidad Empresa |
+| `ActividadEconomica` | Sí | Sin atributo de longitud; máximo práctico 100 por entidad Empresa |
+| `ProvinciaId` | Sí | Código del catálogo, actualmente 6 caracteres |
+| `MunicipioId` | Sí | Código del catálogo, actualmente 6 caracteres |
 | `FullName` | Sí | El controlador actualmente no lo usa |
 | `PhoneNumber` | Sí | Sin validación de formato |
-| `UserName` | Sí | Mínimo 6 |
-| `Email` | Sí | Formato email |
-| `ConfirmEmail` | Sí | Formato email; backend no compara igualdad |
-| `Password` | Sí | Mínimo 6 |
-| `ConfirmPassword` | Sí | Mínimo 6 y debe coincidir |
+| `UserName` | Sí | Sin regla explícita de longitud |
+| `Email` | Sí | Sin atributo de formato; máximo práctico 80 por entidad Empresa |
+| `ConfirmEmail` | Sí | Sin atributo de formato; backend no compara igualdad |
+| `Password` | Sí | Sin regla explícita de longitud |
+| `ConfirmPassword` | Sí | Sin regla explícita de longitud; debe coincidir |
 | `LogoEmpresa` | No | PNG esperado |
 | `CertificadoFirmaDigital` | No | P12, MIME `application/x-pkcs12` esperado |
 | `PasswordCertificadoFirmaDigital` | No | Texto |
@@ -388,9 +397,9 @@ El resultado de negocio que intenta producir el servicio es:
 }
 ```
 
-Sin embargo, el controlador actual hace `Ok(_authService.Registrar(model))` sin `await`: envuelve un `Task` dentro de la respuesta. Por eso el payload HTTP real no debe considerarse estable; puede serializar metadatos del task o fallar durante la serialización. El frontend no debe cerrar el flujo de registro basándose en la forma anterior hasta corregir ese `await`.
+El controlador actual espera `Registrar` con `await`, así que devuelve el JSON de negocio mostrado arriba. La respuesta incluye el password recibido: ignorar esa propiedad, no mostrarla y no persistirla. El backend debe eliminarla de la respuesta.
 
-Si llega a recibirse el resultado pretendido, expone `password`. El frontend debe ignorar esa propiedad, no registrarla y no persistirla.
+La respuesta expone `password`. El frontend debe ignorar esa propiedad, no registrarla y no persistirla.
 
 Errores frecuentes `400` texto:
 
@@ -433,6 +442,10 @@ El backend consulta `resetCode` y no contrasta `email`. Token inválido/expirado
 Advertencia: el reset escribe un hash BCrypt, mientras el login actual valida con `PasswordHasher<ApplicationUser>`. Una contraseña restablecida puede no ser aceptada por login hasta corregir esa incompatibilidad.
 
 Además, el usuario de Identity tiene clave primaria `string`, pero el servicio de reset intenta localizarlo pasando un `Guid`. El flujo debe considerarse no operativo hasta comprobar/corregir ambos puntos.
+
+### 3.5 Usuarios del tenant
+
+La administración de usuarios usa rutas `POST` bajo `/api/auth` y toma tenant/usuario desde el JWT. Incluye consulta del usuario actual, listado, creación, cambio de contraseña propia y reinicio administrativo. Los DTOs, roles permitidos, ejemplos, flujos y limitaciones están documentados en [`USUARIOS_TENANT.md`](./USUARIOS_TENANT.md).
 
 ## 4. Clientes
 
@@ -1262,14 +1275,14 @@ Reglas:
 3. Validar logo PNG y certificado P12 antes de crear `FormData`.
 4. Bloquear doble submit. El registro hace varias escrituras sin transacción única.
 5. Ante timeout/`500`, no reintentar automáticamente; puede existir creación parcial.
-6. Mientras falte el `await` del controlador, tratar la respuesta de registro como inestable y verificar el resultado antes de navegar.
+6. Al recibir `200`, tratar el registro como exitoso, ignorar `password` y navegar al login (el registro no crea sesión).
 7. Ignorar el password si aparece en la respuesta.
 8. Iniciar sesión separadamente.
 9. Después del login, cargar `/api/auth/perfil`; no construir el emisor leyendo rutas públicas de empresas.
 
 La consulta automática de RNC no está disponible porque `DgiiController` está excluido del build. Mantener ese autocompletado detrás de una interfaz/adaptador para activarlo en el futuro, pero permitir captura manual ahora.
 
-El rol por defecto `TENANT_LISTS_ADMIN` se guarda en la tabla relacional propia `UsuariosTenantsRoles`, pero login lee roles de `AspNetUserRoles`. Un recién registrado puede recibir un token sin claims `role`: podrá usar rutas `[Authorize]` como clientes/artículos/documentos, pero no `GET /api/empresas`, que exige `SUPERADMIN`.
+El rol por defecto actual `TenantAdmin` se guarda en la tabla relacional propia `UsuariosTenantsRoles`, pero login lee roles de `AspNetUserRoles`. Un recién registrado puede recibir un token sin claims `role`: podrá usar rutas `[Authorize]` como clientes/artículos/documentos, pero no rutas que exijan `TenantAdmin` ni `GET /api/empresas`, que exige `SUPERADMIN`.
 
 ### 12.2 Sesión
 
@@ -1459,7 +1472,7 @@ Rutas de UI sugeridas:
 - Registro no es una transacción única.
 - El rol de registro se guarda en una relación distinta a la que consulta login.
 - JWT ya usa Bearer como esquema predeterminado, valida issuer/audience y emite cada rol como claim independiente.
-- El registro devuelve `Ok(Task)` porque falta `await`; su respuesta HTTP no es un contrato estable.
+- El registro ahora espera el servicio, pero devuelve en JSON el password recibido; el frontend debe ignorarlo y el backend debe retirarlo de la respuesta.
 - El rol por defecto del registro se guarda fuera de `AspNetUserRoles`, que es la fuente utilizada al generar el JWT.
 - Forgot password ya corta correctamente con `400 "Usuario no encontrado"` cuando el correo no existe.
 - Reset y login usan algoritmos de hash incompatibles y el reset busca una clave string con un GUID.

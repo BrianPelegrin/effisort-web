@@ -1,5 +1,5 @@
 <script setup lang="ts">
-type NavigationId = 'home' | 'sale' | 'invoices' | 'clients' | 'inventory' | 'credit-notes'
+type NavigationId = 'home' | 'sale' | 'invoices' | 'clients' | 'inventory' | 'credit-notes' | 'users'
 
 interface NavigationItem {
   id: NavigationId
@@ -13,6 +13,7 @@ interface NavigationItem {
 const emit = defineEmits<{
   toggle: []
   navigate: []
+  'change-password': []
 }>()
 
 const props = withDefaults(defineProps<{
@@ -72,6 +73,9 @@ const managementNavigation: NavigationItem[] = [
     to: '/admin/billing/credit-notes',
   },
 ]
+const visibleManagementNavigation = computed<NavigationItem[]>(() => auth.isTenantAdmin
+  ? [...managementNavigation, { id: 'users', label: 'Usuarios', description: 'Accesos del equipo', icon: 'bi bi-person-gear', to: '/admin/users' }]
+  : managementNavigation)
 
 const userName = computed(() => auth.user?.name || auth.user?.userName || 'Usuario Effisort')
 const userEmail = computed(() => auth.user?.email || 'Sin correo registrado')
@@ -98,6 +102,8 @@ function isNavigationActive(id: NavigationId) {
       return path.startsWith('/admin/inventory')
     case 'credit-notes':
       return path.includes('/credit-note')
+    case 'users':
+      return path.startsWith('/admin/users')
     default:
       return false
   }
@@ -167,7 +173,7 @@ async function logout() {
           <span class="navigation-label">Gestión</span>
 
           <NuxtLink
-            v-for="item in managementNavigation"
+            v-for="item in visibleManagementNavigation"
             :key="item.id"
             :to="item.to"
             class="navigation-item"
@@ -196,6 +202,17 @@ async function logout() {
           <small class="account-email">{{ userEmail }}</small>
         </span>
       </div>
+
+      <button
+        type="button"
+        class="logout-button password-button"
+        :title="props.collapsed ? 'Cambiar mi contraseña' : undefined"
+        aria-label="Cambiar mi contraseña"
+        @click="emit('change-password')"
+      >
+        <i class="bi bi-shield-lock" aria-hidden="true" />
+        <span>Cambiar contraseña</span>
+      </button>
 
       <button
         type="button"
@@ -502,6 +519,11 @@ async function logout() {
 .logout-button:hover {
   background: rgba(225, 75, 96, 0.12);
   color: #ffb2bf;
+}
+
+.password-button:hover {
+  background: rgba(114, 166, 255, 0.14);
+  color: #c8dcff;
 }
 
 .sidebar-control:focus-visible,

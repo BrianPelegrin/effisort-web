@@ -78,6 +78,7 @@ async function onSubmit() {
 
     auth.setSession(response.token, form.remember)
     credentialsAccepted = true
+    await auth.loadCurrentUser()
     await auth.loadProfile()
     await navigateTo('/admin')
   } catch (caughtError: unknown) {
@@ -96,12 +97,15 @@ async function onSubmit() {
       error.value = 'Se realizaron demasiados intentos. Espera un momento antes de intentar nuevamente.'
     } else {
       error.value = credentialsAccepted
-        ? 'La sesión fue creada, pero no pudimos cargar la empresa. Verifica tu conexión e inténtalo nuevamente.'
+        ? !auth.isAuthenticated && caughtError instanceof Error
+          ? caughtError.message
+          : 'La sesión fue creada, pero no pudimos validar el usuario o la empresa. Verifica tu conexión e inténtalo nuevamente.'
         : caughtError instanceof Error && !status
           ? caughtError.message
           : 'No pudimos iniciar sesión. Verifica tu conexión e inténtalo nuevamente.'
     }
   } finally {
+    form.password = ''
     loading.value = false
   }
 }

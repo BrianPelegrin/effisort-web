@@ -110,10 +110,35 @@
                 <i class="bi bi-chevron-right client-selector-arrow" />
               </button>
 
-              <button type="button" class="link-action mt-2" @click="createClient">
-                <i class="bi bi-plus-lg me-1"></i>
-                Nuevo cliente
-              </button>
+              <div class="client-actions mt-2">
+                <button ref="invoiceOnlyClientButton" type="button" class="link-action" :disabled="submitting" @click="openInvoiceOnlyClientModal">
+                  <i class="bi bi-person-plus me-1" aria-hidden="true" />
+                  {{ invoice.customClient ? 'Editar cliente de esta factura' : 'Cliente solo para esta factura' }}
+                </button>
+                <button type="button" class="link-action" :disabled="submitting" @click="createClient">
+                  <i class="bi bi-plus-lg me-1" aria-hidden="true" />
+                  Crear en el directorio
+                </button>
+              </div>
+            </div>
+
+            <div class="col-md-6">
+              <label for="invoice-buyer-email" class="form-label">Correo de esta factura</label>
+              <input
+                id="invoice-buyer-email"
+                v-model="buyerEmailForInvoice"
+                type="email"
+                inputmode="email"
+                autocomplete="off"
+                maxlength="80"
+                class="form-control effi-input"
+                :class="{ 'is-invalid': !hasValidBuyerEmail }"
+                :disabled="!selectedClient || submitting"
+                :aria-invalid="!hasValidBuyerEmail"
+                placeholder="Selecciona un cliente"
+              >
+              <small v-if="!hasValidBuyerEmail" class="field-helper text-danger">Escribe un correo válido de hasta 80 caracteres.</small>
+              <small v-else class="field-helper">Puedes cambiarlo solo para este comprobante. No modifica el cliente.</small>
             </div>
 
             <div class="col-md-3">
@@ -217,7 +242,7 @@
             </div>
           </div>
 
-          <div class="table-responsive">
+          <div class="table-responsive invoice-items-table">
             <table class="table effi-table align-middle">
               <thead>
                 <tr>
@@ -253,10 +278,10 @@
                           @keydown.enter.prevent="saveInventoryDescription(item)"
                           @keydown.esc.prevent="cancelInventoryDescriptionEdit"
                         >
-                        <button type="button" class="line-edit-save" title="Guardar descripción" aria-label="Guardar descripción" @click="saveInventoryDescription(item)">
+                        <button type="button" class="btn btn-success line-edit-save" title="Guardar descripción" aria-label="Guardar descripción" @click="saveInventoryDescription(item)">
                           <i class="bi bi-check-lg" />
                         </button>
-                        <button type="button" class="line-edit-cancel" title="Cancelar edición" aria-label="Cancelar edición" @click="cancelInventoryDescriptionEdit">
+                        <button type="button" class="btn btn-danger line-edit-cancel" title="Cancelar edición" aria-label="Cancelar edición" @click="cancelInventoryDescriptionEdit">
                           <i class="bi bi-x-lg" />
                         </button>
                       </div>
@@ -322,6 +347,43 @@
                 </tr>
               </tbody>
             </table>
+          </div>
+
+          <div class="mobile-invoice-items">
+            <div v-if="!invoice.items.length" class="products-empty-state">
+              <i class="bi bi-bag-plus" aria-hidden="true" />
+              <strong>No has agregado productos o servicios</strong>
+              <span>Selecciona un artículo del inventario o agrega uno personalizado.</span>
+            </div>
+            <article v-for="item in invoice.items" :key="item.id" class="mobile-invoice-item">
+              <div class="mobile-item-heading">
+                <div class="mobile-item-description">
+                  <template v-if="isEditingInventoryDescription(item)">
+                    <div class="line-description-editor">
+                      <input v-model.trim="inventoryDescriptionDraft" type="text" class="form-control table-input" maxlength="80" aria-label="Descripción del producto" @keydown.enter.prevent="saveInventoryDescription(item)" @keydown.esc.prevent="cancelInventoryDescriptionEdit">
+                      <button type="button" class="btn btn-success line-edit-save" title="Guardar descripción" aria-label="Guardar descripción" @click="saveInventoryDescription(item)"><i class="bi bi-check-lg" /></button>
+                      <button type="button" class="btn btn-danger line-edit-cancel" title="Cancelar edición" aria-label="Cancelar edición" @click="cancelInventoryDescriptionEdit"><i class="bi bi-x-lg" /></button>
+                    </div>
+                  </template>
+                  <strong v-else class="line-product-name">{{ item.description }}</strong>
+                  <small class="line-product-code">{{ item.customArticle ? 'Producto personalizado · Unidad 46' : (articleForItem(item)?.codigo || 'Sin código') }}</small>
+                </div>
+                <span class="tax-badge">ITBIS {{ taxRateForItem(item) }}%</span>
+              </div>
+              <div class="mobile-item-details">
+                <label :for="`mobile-quantity-${item.id}`">Cantidad
+                  <input :id="`mobile-quantity-${item.id}`" v-model.number="item.quantity" type="number" :min="quantityStep(item)" :step="quantityStep(item)" class="form-control table-input quantity-input" @change="normalizeQuantity(item)">
+                  <small>{{ quantityStep(item) === 1 ? 'Unidades enteras' : 'Permite decimales' }}</small>
+                </label>
+                <div><span>Precio unitario</span><strong>{{ formatCurrency(item.unitPrice) }}</strong></div>
+                <div class="mobile-item-amount"><span>Importe</span><strong>{{ formatCurrency(getLineSubtotal(item)) }}</strong></div>
+              </div>
+              <div class="mobile-item-actions">
+                <button v-if="item.customArticle" type="button" class="btn btn-outline-primary" :aria-label="`Editar ${item.description}`" @click="openCustomProductEditor(item)"><i class="bi bi-pencil" aria-hidden="true" />Editar</button>
+                <button v-else type="button" class="btn btn-outline-primary" :aria-label="`Editar descripción de ${item.description}`" @click="startInventoryDescriptionEdit(item)"><i class="bi bi-pencil" aria-hidden="true" />Editar descripción</button>
+                <button type="button" class="btn btn-outline-danger" :aria-label="`Eliminar ${item.description}`" @click="removeItem(item.id)"><i class="bi bi-trash" aria-hidden="true" />Eliminar</button>
+              </div>
+            </article>
           </div>
 
           <div class="line-add-actions mt-3">
@@ -420,16 +482,18 @@
         </div>
       </div>
 
-      <!-- Right column -->
+      <!-- Resumen y pago -->
       <div class="col-xl-4">
         <div class="sticky-summary">
-          <!-- Resumen -->
-          <div class="effi-card summary-card mb-4">
+          <div class="effi-card summary-card">
             <div class="side-card-title">
               <span class="summary-icon">
                 <i class="bi bi-currency-dollar"></i>
               </span>
-              <h2>Resumen</h2>
+              <div>
+                <h2>Resumen de la factura</h2>
+                <span class="summary-status"><i class="bi bi-circle-fill" aria-hidden="true" />Borrador<span v-if="selectedReceiptType"> · {{ selectedReceiptType.ecf }}</span></span>
+              </div>
             </div>
 
             <div class="summary-row">
@@ -458,133 +522,46 @@
               <span>Equivalente en DOP</span>
               <strong>{{ formatDop(grandTotal * invoice.exchangeRate) }}</strong>
             </div>
-          </div>
-
-          <!-- Método de pago -->
-          <div class="effi-card mb-4">
-            <div class="side-card-title">
-              <span class="payment-icon">
-                <i class="bi bi-credit-card"></i>
-              </span>
-              <h2>Método de pago</h2>
-            </div>
-
-            <select v-model="invoice.paymentMethod" class="form-select effi-input" :disabled="loadingCatalogs">
-              <option value="">Seleccione una forma...</option>
-              <option v-for="paymentMethod in paymentMethods" :key="paymentMethod.id" :value="paymentMethod.codigo">
-                {{ paymentMethod.codigo }} - {{ paymentMethod.descripcion }}
-              </option>
-            </select>
-
-            <label class="form-label mt-3">Tipo de pago <span class="required">*</span></label>
-            <select v-model.number="invoice.paymentType" class="form-select effi-input" :disabled="loadingCatalogs">
-              <option :value="0">Seleccione un tipo...</option>
-              <option v-for="paymentType in paymentTypes" :key="paymentType.id" :value="paymentType.codigo">
-                {{ paymentType.codigo }} - {{ paymentType.nombre }}
-              </option>
-            </select>
-            <small v-if="invoice.paymentType && invoice.paymentType !== 1" class="field-helper text-warning">La primera integración permite emitir únicamente con el tipo de pago 1.</small>
-
-            <template v-if="requiresDueDate">
-              <label class="form-label mt-3">Término de pago</label>
-              <select v-model="invoice.paymentTerm" class="form-select effi-input" :disabled="loadingCatalogs">
-                <option value="">Sin término específico</option>
-                <option v-for="paymentTerm in paymentTerms" :key="paymentTerm.id" :value="paymentTerm.codigo">
-                  {{ paymentTerm.codigo }} - {{ paymentTerm.nombre }}
+            <div class="summary-section">
+              <h3><i class="bi bi-credit-card" aria-hidden="true" />Método de pago</h3>
+              <label for="invoice-payment-method" class="form-label">Forma de pago <span class="required">*</span></label>
+              <select id="invoice-payment-method" v-model="invoice.paymentMethod" class="form-select effi-input" :disabled="loadingCatalogs">
+                <option value="">Seleccione una forma...</option>
+                <option v-for="paymentMethod in paymentMethods" :key="paymentMethod.id" :value="paymentMethod.codigo">
+                  {{ paymentMethod.codigo }} - {{ paymentMethod.descripcion }}
                 </option>
               </select>
-            </template>
 
-            <div class="helper-note mt-3">
-              <i class="bi bi-info-circle"></i>
-              <span>La forma de pago se enviará por el total calculado de la factura.</span>
-            </div>
-          </div>
+              <label for="invoice-payment-type" class="form-label mt-3">Tipo de pago <span class="required">*</span></label>
+              <select id="invoice-payment-type" v-model.number="invoice.paymentType" class="form-select effi-input" :disabled="loadingCatalogs">
+                <option :value="0">Seleccione un tipo...</option>
+                <option v-for="paymentType in paymentTypes" :key="paymentType.id" :value="paymentType.codigo">
+                  {{ paymentType.codigo }} - {{ paymentType.nombre }}
+                </option>
+              </select>
+              <small v-if="invoice.paymentType && invoice.paymentType !== 1" class="field-helper text-warning">La primera integración permite emitir únicamente con el tipo de pago 1.</small>
 
-          <!-- Estado -->
-          <div class="effi-card mb-4">
-            <div class="side-card-title">
-              <span class="state-icon">
-                <i class="bi bi-check-circle"></i>
-              </span>
-              <h2>Estado</h2>
-            </div>
-
-            <div class="d-flex flex-wrap gap-2 mb-3">
-              <span class="status-badge status-draft">
-                <i class="bi bi-circle-fill"></i>
-                Borrador
-              </span>
-
-              <span class="status-badge status-purple">
-                {{ selectedReceiptType?.ecf || 'Comprobante pendiente' }}
-              </span>
+              <template v-if="requiresDueDate">
+                <label for="invoice-payment-term" class="form-label mt-3">Término de pago</label>
+                <select id="invoice-payment-term" v-model="invoice.paymentTerm" class="form-select effi-input" :disabled="loadingCatalogs">
+                  <option value="">Sin término específico</option>
+                  <option v-for="paymentTerm in paymentTerms" :key="paymentTerm.id" :value="paymentTerm.codigo">
+                    {{ paymentTerm.codigo }} - {{ paymentTerm.nombre }}
+                  </option>
+                </select>
+              </template>
             </div>
 
-            <div class="helper-note">
-              <i class="bi bi-info-circle"></i>
-              <span>Esta factura está en borrador. Revisa la información y emítela cuando estés listo.</span>
+            <div class="summary-readiness" :class="pendingRequirements.length ? 'has-pending' : 'is-ready'" aria-live="polite">
+              <i class="bi" :class="pendingRequirements.length ? 'bi-exclamation-circle' : 'bi-check-circle'" aria-hidden="true" />
+              <span>{{ pendingRequirements.length ? `${pendingRequirements.length} ${pendingRequirements.length === 1 ? 'dato pendiente' : 'datos pendientes'} para emitir` : 'Lista para revisar' }}</span>
             </div>
-          </div>
-
-          <!-- Validaciones -->
-          <div class="effi-card">
-            <div class="side-card-title">
-              <span class="validation-icon">
-                <i class="bi bi-list-check"></i>
-              </span>
-              <h2>Campos obligatorios mínimos</h2>
-            </div>
-
-            <ul class="validation-list">
-              <li :class="{ checked: hasClient }">
-                <i class="bi" :class="hasClient ? 'bi-check-lg' : 'bi-circle'"></i>
-                Cliente
-              </li>
-              <li :class="{ checked: !!invoice.issueDate }">
-                <i class="bi" :class="invoice.issueDate ? 'bi-check-lg' : 'bi-circle'"></i>
-                Fecha de emisión
-              </li>
-              <li :class="{ checked: hasValidDates }">
-                <i class="bi" :class="hasValidDates ? 'bi-check-lg' : 'bi-circle'"></i>
-                Fechas válidas
-              </li>
-              <li :class="{ checked: hasValidReceiptType }">
-                <i class="bi" :class="hasValidReceiptType ? 'bi-check-lg' : 'bi-circle'"></i>
-                Tipo de comprobante
-              </li>
-              <li :class="{ checked: issuerReady }">
-                <i class="bi" :class="issuerReady ? 'bi-check-lg' : 'bi-circle'"></i>
-                Datos del emisor
-              </li>
-              <li :class="{ checked: hasValidIncomeType }">
-                <i class="bi" :class="hasValidIncomeType ? 'bi-check-lg' : 'bi-circle'"></i>
-                Tipo de ingreso
-              </li>
-              <li :class="{ checked: hasValidPaymentType }">
-                <i class="bi" :class="hasValidPaymentType ? 'bi-check-lg' : 'bi-circle'"></i>
-                Tipo de pago
-              </li>
-              <li :class="{ checked: hasValidCurrency }">
-                <i class="bi" :class="hasValidCurrency ? 'bi-check-lg' : 'bi-circle'"></i>
-                Moneda
-              </li>
-              <li :class="{ checked: hasValidPaymentMethod }">
-                <i class="bi" :class="hasValidPaymentMethod ? 'bi-check-lg' : 'bi-circle'"></i>
-                Forma de pago
-              </li>
-              <li :class="{ checked: hasValidItems }">
-                <i class="bi" :class="hasValidItems ? 'bi-check-lg' : 'bi-circle'"></i>
-                Al menos un producto o servicio
-              </li>
-              <li v-if="requiresExchangeRate" :class="{ checked: hasValidExchangeRate }">
-                <i class="bi" :class="hasValidExchangeRate ? 'bi-check-lg' : 'bi-circle'"></i>
-                Tasa de cambio
-              </li>
-              <li :class="{ checked: invoice.discount === 0 }">
-                <i class="bi" :class="invoice.discount === 0 ? 'bi-check-lg' : 'bi-circle'"></i>
-                Sin descuento fiscal pendiente
-              </li>
+            <button v-if="pendingRequirements.length" type="button" class="validation-toggle" aria-controls="invoice-pending-requirements" :aria-expanded="showValidationDetails" @click="showValidationDetails = !showValidationDetails">
+              {{ showValidationDetails ? 'Ocultar pendientes' : 'Ver qué falta' }}
+              <i class="bi" :class="showValidationDetails ? 'bi-chevron-up' : 'bi-chevron-down'" aria-hidden="true" />
+            </button>
+            <ul v-if="pendingRequirements.length" v-show="showValidationDetails" id="invoice-pending-requirements" class="validation-list">
+              <li v-for="requirement in pendingRequirements" :key="requirement.label"><i class="bi bi-circle" aria-hidden="true" />{{ requirement.label }}</li>
             </ul>
           </div>
         </div>
@@ -619,6 +596,7 @@
                   v-model="clientSearch"
                   type="search"
                   class="form-control"
+                  aria-label="Buscar clientes"
                   placeholder="Buscar por nombre, RNC, identificación, código o correo..."
                 >
                 <button v-if="clientSearch" type="button" class="btn btn-outline-secondary" @click="clientSearch = ''">Limpiar</button>
@@ -630,7 +608,7 @@
               </div>
 
               <div v-if="filteredClients.length" class="table-responsive product-results client-results">
-                <table class="table align-middle mb-0">
+                <table class="table align-middle mb-0 selector-table">
                   <thead><tr><th>Cliente</th><th>Identificación</th><th>Contacto</th><th class="text-end">Acción</th></tr></thead>
                   <tbody>
                     <tr v-for="client in filteredClients" :key="client.id" :class="{ 'selected-client-row': client.id === invoice.clientId }">
@@ -646,6 +624,14 @@
                     </tr>
                   </tbody>
                 </table>
+                <div class="selector-mobile-list">
+                  <article v-for="client in filteredClients" :key="client.id" class="selector-mobile-card" :class="{ 'is-selected': client.id === invoice.clientId }">
+                    <strong>{{ client.razonSocialComprador }}</strong>
+                    <small>{{ clientIdentification(client) }}</small>
+                    <small v-if="client.correoComprador">{{ client.correoComprador }}</small>
+                    <button type="button" class="btn btn-primary" @click="selectClient(client)"><i class="bi me-2" :class="client.id === invoice.clientId ? 'bi-check-circle' : 'bi-person-check'" aria-hidden="true" />{{ client.id === invoice.clientId ? 'Seleccionado' : 'Seleccionar cliente' }}</button>
+                  </article>
+                </div>
               </div>
 
               <div v-else class="product-modal-empty">
@@ -659,6 +645,62 @@
               <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Cerrar</button>
             </div>
           </div>
+        </div>
+      </div>
+    </Teleport>
+
+    <Teleport to="body">
+      <div id="invoice-only-client-modal" ref="invoiceOnlyClientModalElement" class="modal fade" tabindex="-1" aria-labelledby="invoice-only-client-title" aria-hidden="true">
+        <div class="modal-dialog modal-lg modal-dialog-centered modal-dialog-scrollable">
+          <form class="modal-content catalog-bootstrap-modal" novalidate @submit.prevent="saveInvoiceOnlyClient">
+            <div class="modal-header product-modal-header">
+              <div>
+                <span class="product-modal-eyebrow">Sin crear un registro</span>
+                <h2 id="invoice-only-client-title">{{ invoice.customClient ? 'Editar cliente de esta factura' : 'Cliente solo para esta factura' }}</h2>
+                <p>Estos datos se incluirán en el comprobante y en el borrador, pero no se guardarán en el directorio de clientes.</p>
+              </div>
+              <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Cerrar" />
+            </div>
+            <div class="modal-body product-modal-body">
+              <div v-if="invoiceOnlyClientError" class="alert alert-danger" role="alert">{{ invoiceOnlyClientError }}</div>
+              <div class="row g-3">
+                <div class="col-12">
+                  <label for="invoice-only-client-name" class="form-label">Nombre o razón social <span class="required">*</span></label>
+                  <input id="invoice-only-client-name" ref="invoiceOnlyClientNameInput" v-model="invoiceOnlyBuyerForm.razonSocialComprador" type="text" class="form-control" maxlength="150" autocomplete="off" required>
+                </div>
+                <div class="col-md-6">
+                  <label for="invoice-only-client-rnc" class="form-label">RNC o cédula <span v-if="invoice.documentType === '31'" class="required">*</span></label>
+                  <input id="invoice-only-client-rnc" v-model="invoiceOnlyBuyerForm.rncComprador" type="text" class="form-control" maxlength="15" inputmode="numeric" autocomplete="off">
+                  <small class="field-helper">Obligatorio para E31. Puede escribirse con guiones.</small>
+                </div>
+                <div class="col-md-6">
+                  <label for="invoice-only-client-foreign-id" class="form-label">Identificador extranjero</label>
+                  <input id="invoice-only-client-foreign-id" v-model="invoiceOnlyBuyerForm.identificadorExtranjero" type="text" class="form-control" maxlength="20" autocomplete="off">
+                </div>
+                <div class="col-md-6">
+                  <label for="invoice-only-client-email" class="form-label">Correo electrónico</label>
+                  <input id="invoice-only-client-email" v-model="invoiceOnlyBuyerForm.correoComprador" type="email" inputmode="email" class="form-control" maxlength="80" autocomplete="off">
+                </div>
+                <div class="col-md-6">
+                  <label for="invoice-only-client-contact" class="form-label">Persona de contacto</label>
+                  <input id="invoice-only-client-contact" v-model="invoiceOnlyBuyerForm.contactoComprador" type="text" class="form-control" maxlength="80" autocomplete="off">
+                </div>
+                <div class="col-md-8">
+                  <label for="invoice-only-client-address" class="form-label">Dirección</label>
+                  <input id="invoice-only-client-address" v-model="invoiceOnlyBuyerForm.direccionComprador" type="text" class="form-control" maxlength="100" autocomplete="off">
+                </div>
+                <div class="col-md-4">
+                  <label for="invoice-only-client-country" class="form-label">País</label>
+                  <input id="invoice-only-client-country" v-model="invoiceOnlyBuyerForm.paisComprador" type="text" class="form-control" maxlength="60" autocomplete="off">
+                </div>
+              </div>
+              <small class="field-helper d-block mt-3">El correo se puede ajustar después para esta factura. La emisión no envía un email automáticamente.</small>
+            </div>
+            <div class="modal-footer product-modal-footer">
+              <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Cancelar</button>
+              <button type="submit" class="btn btn-primary">Usar en esta factura</button>
+            </div>
+          </form>
         </div>
       </div>
     </Teleport>
@@ -691,6 +733,7 @@
                   v-model="productSearch"
                   type="search"
                   class="form-control"
+                  aria-label="Buscar productos o servicios"
                   placeholder="Buscar por nombre, código o descripción..."
                 >
                 <button v-if="productSearch" type="button" class="btn btn-outline-secondary" @click="productSearch = ''">Limpiar</button>
@@ -702,7 +745,7 @@
               </div>
 
               <div v-if="filteredProducts.length" class="table-responsive product-results">
-                <table class="table align-middle mb-0">
+                <table class="table align-middle mb-0 selector-table">
                   <thead><tr><th>Producto/Servicio</th><th>Tipo</th><th class="text-end">Precio</th><th class="text-center">Existencia</th><th class="text-end">Acción</th></tr></thead>
                   <tbody>
                     <tr v-for="article in filteredProducts" :key="article.id">
@@ -722,6 +765,14 @@
                     </tr>
                   </tbody>
                 </table>
+                <div class="selector-mobile-list">
+                  <article v-for="article in filteredProducts" :key="article.id" class="selector-mobile-card">
+                    <div class="selector-mobile-heading"><strong>{{ article.nombreItem }}</strong><span class="product-type-badge">{{ article.indicadorBienoServicio === 2 ? 'Servicio' : 'Bien' }}</span></div>
+                    <small>{{ article.codigo || 'Sin código' }}<template v-if="article.descripcionItem"> · {{ article.descripcionItem }}</template></small>
+                    <div class="selector-mobile-facts"><span><strong>{{ formatCurrency(article.precioUnitarioItem) }}</strong><small>{{ taxLabel(article.indicadorFacturacion) }}</small></span><span>Existencia: {{ article.indicadorBienoServicio === 2 ? 'No aplica' : article.existencia }}</span></div>
+                    <button type="button" class="btn btn-primary" @click="selectProduct(article)"><i class="bi me-2" :class="selectedProductQuantity(article.id) ? 'bi-check-circle' : 'bi-plus-circle'" aria-hidden="true" />{{ selectedProductQuantity(article.id) ? `Agregar otro (${selectedProductQuantity(article.id)})` : 'Agregar a la factura' }}</button>
+                  </article>
+                </div>
               </div>
 
               <div v-else class="product-modal-empty">
@@ -848,6 +899,7 @@
               <div class="row g-3 fiscal-review-grid">
                 <div class="col-sm-6"><span>Comprobante</span><strong>E{{ invoice.documentType }} · {{ selectedReceiptType?.ecf }}</strong></div>
                 <div class="col-sm-6"><span>Cliente</span><strong>{{ selectedClient?.razonSocialComprador }}</strong></div>
+                <div class="col-sm-6"><span>Correo en la factura</span><strong>{{ buyerEmailForInvoice.trim() || 'Sin correo' }}</strong></div>
                 <div class="col-sm-6"><span>Fecha</span><strong>{{ invoice.issueDate }}</strong></div>
                 <div class="col-sm-6"><span>Líneas</span><strong>{{ invoice.items.length }}</strong></div>
                 <div class="col-sm-6"><span>ITBIS</span><strong>{{ formatCurrency(taxTotal) }}</strong></div>
@@ -927,7 +979,7 @@ import type {
   PaymentType,
   ReceiptType,
 } from '~/types/billing'
-import type { Client } from '~/types/client'
+import type { Client, ClientWrite } from '~/types/client'
 import type { EcfApiResult, EcfResultStatus } from '~/types/ecf'
 import { ApiError } from '~/utils/api'
 import {
@@ -935,8 +987,11 @@ import {
   calculateInvoice,
   classifyEcfResult,
   EcfValidationError,
+  isValidInvoiceBuyerEmail,
   mapCompanyProfileToIssuer,
+  prepareInvoiceOnlyBuyer,
   type InvoiceDraft,
+  type InvoiceOnlyBuyerInput,
   type IssuerConfiguration,
 } from '~/utils/ecf'
 
@@ -1001,12 +1056,19 @@ const {
 const { emitInvoice: sendInvoice, downloadPdf, submitting } = useEcfApi()
 const auth = useAuthStore()
 const showOptional = ref(false)
+const showValidationDetails = ref(false)
 const showClientModal = ref(false)
 const clientSearch = ref('')
 const clientSearchInput = ref<HTMLInputElement | null>(null)
 const clientSelectorButton = ref<HTMLButtonElement | null>(null)
 const clientModalElement = ref<HTMLElement | null>(null)
 let clientModalInstance: BootstrapModalInstance | null = null
+const invoiceOnlyClientButton = ref<HTMLButtonElement | null>(null)
+const invoiceOnlyClientNameInput = ref<HTMLInputElement | null>(null)
+const invoiceOnlyClientModalElement = ref<HTMLElement | null>(null)
+let invoiceOnlyClientModalInstance: BootstrapModalInstance | null = null
+const invoiceOnlyClientError = ref('')
+const invoiceOnlyBuyerForm = reactive<InvoiceOnlyBuyerInput>(emptyInvoiceOnlyBuyerInput())
 const showProductModal = ref(false)
 const productSearch = ref('')
 const productSearchInput = ref<HTMLInputElement | null>(null)
@@ -1049,6 +1111,8 @@ const downloadingPdf = ref(false)
 
 const invoice = reactive({
   clientId: '',
+  customClient: null as ClientWrite | null,
+  buyerEmail: null as string | null,
   issueDate: currentDate(),
   dueDate: dateAfterDays(15),
   documentType: '',
@@ -1075,6 +1139,8 @@ onMounted(async () => {
   restorePendingInvoice()
   clientModalElement.value?.addEventListener('shown.bs.modal', handleClientModalShown)
   clientModalElement.value?.addEventListener('hidden.bs.modal', handleClientModalHidden)
+  invoiceOnlyClientModalElement.value?.addEventListener('shown.bs.modal', handleInvoiceOnlyClientModalShown)
+  invoiceOnlyClientModalElement.value?.addEventListener('hidden.bs.modal', handleInvoiceOnlyClientModalHidden)
   productModalElement.value?.addEventListener('shown.bs.modal', handleProductModalShown)
   productModalElement.value?.addEventListener('hidden.bs.modal', handleProductModalHidden)
   customProductModalElement.value?.addEventListener('shown.bs.modal', handleCustomProductModalShown)
@@ -1085,12 +1151,16 @@ onMounted(async () => {
 onBeforeUnmount(() => {
   clientModalElement.value?.removeEventListener('shown.bs.modal', handleClientModalShown)
   clientModalElement.value?.removeEventListener('hidden.bs.modal', handleClientModalHidden)
+  invoiceOnlyClientModalElement.value?.removeEventListener('shown.bs.modal', handleInvoiceOnlyClientModalShown)
+  invoiceOnlyClientModalElement.value?.removeEventListener('hidden.bs.modal', handleInvoiceOnlyClientModalHidden)
   productModalElement.value?.removeEventListener('shown.bs.modal', handleProductModalShown)
   productModalElement.value?.removeEventListener('hidden.bs.modal', handleProductModalHidden)
   customProductModalElement.value?.removeEventListener('shown.bs.modal', handleCustomProductModalShown)
   customProductModalElement.value?.removeEventListener('hidden.bs.modal', handleCustomProductModalHidden)
   clientModalInstance?.dispose()
   clientModalInstance = null
+  invoiceOnlyClientModalInstance?.dispose()
+  invoiceOnlyClientModalInstance = null
   productModalInstance?.dispose()
   productModalInstance = null
   customProductModalInstance?.dispose()
@@ -1101,11 +1171,17 @@ onBeforeUnmount(() => {
   resultModalInstance = null
 })
 
-const selectedClient = computed(() => clients.value.find(client => client.id === invoice.clientId))
+const selectedClient = computed(() => invoice.customClient ?? clients.value.find(client => client.id === invoice.clientId))
+const buyerEmailForInvoice = computed({
+  get: () => invoice.buyerEmail ?? selectedClient.value?.correoComprador ?? '',
+  set: (value: string) => { invoice.buyerEmail = value },
+})
+const hasValidBuyerEmail = computed(() => isValidInvoiceBuyerEmail(buyerEmailForInvoice.value))
 const selectedReceiptType = computed(() => receiptTypes.value.find(item => String(item.tipo) === invoice.documentType))
 const isEditingCustomProduct = computed(() => editingCustomProductId.value !== null)
 
-const hasClient = computed(() => !!invoice.clientId)
+const hasClient = computed(() => Boolean(selectedClient.value?.razonSocialComprador?.trim()))
+const hasValidBuyerRnc = computed(() => invoice.documentType !== '31' || Boolean(selectedClient.value?.rncComprador?.trim()))
 const issuerReady = computed(() => Boolean(
   issuer.value?.rnc
   && issuer.value.businessName,
@@ -1151,6 +1227,7 @@ const invoiceDraft = computed<InvoiceDraft>(() => ({
   purchaseOrder: invoice.purchaseOrder,
   notes: invoice.notes,
   client: selectedClient.value,
+  buyerEmail: buyerEmailForInvoice.value,
   items: invoice.items.flatMap((item) => {
     const article = articleForItem(item)
     return article ? [{
@@ -1210,6 +1287,7 @@ const grandTotal = computed(() => invoiceCalculation.value.total)
 
 const isInvoiceReady = computed(() => Boolean(
   hasClient.value
+  && hasValidBuyerRnc.value
   && hasValidDates.value
   && hasValidReceiptType.value
   && hasValidCurrency.value
@@ -1218,9 +1296,26 @@ const isInvoiceReady = computed(() => Boolean(
   && hasValidPaymentType.value
   && hasValidPaymentMethod.value
   && hasValidItems.value
+  && hasValidBuyerEmail.value
   && hasValidDiscount.value
   && hasValidExchangeRate.value,
 ))
+
+const pendingRequirements = computed(() => [
+  { label: 'Cliente', ready: hasClient.value },
+  ...(invoice.documentType === '31' ? [{ label: 'RNC o cédula del comprador para E31', ready: hasValidBuyerRnc.value }] : []),
+  { label: 'Fecha de emisión y vencimiento válidos', ready: hasValidDates.value },
+  { label: 'Tipo de comprobante', ready: hasValidReceiptType.value },
+  { label: 'Datos del emisor', ready: issuerReady.value },
+  { label: 'Tipo de ingreso', ready: hasValidIncomeType.value },
+  { label: 'Tipo de pago admitido', ready: hasValidPaymentType.value },
+  { label: 'Moneda admitida', ready: hasValidCurrency.value },
+  { label: 'Forma de pago', ready: hasValidPaymentMethod.value },
+  { label: 'Productos o servicios válidos', ready: hasValidItems.value },
+  { label: 'Correo de esta factura válido', ready: hasValidBuyerEmail.value },
+  ...(requiresExchangeRate.value ? [{ label: 'Tasa de cambio', ready: hasValidExchangeRate.value }] : []),
+  { label: 'Descuento fiscal pendiente', ready: hasValidDiscount.value },
+].filter(requirement => !requirement.ready))
 
 function getLineSubtotal(item: InvoiceItem) {
   return (Number(item.quantity) || 0) * (Number(item.unitPrice) || 0)
@@ -1327,8 +1422,81 @@ function handleClientModalHidden() {
   clientSelectorButton.value?.focus()
 }
 
+function emptyInvoiceOnlyBuyerInput(): InvoiceOnlyBuyerInput {
+  return {
+    razonSocialComprador: '',
+    rncComprador: '',
+    identificadorExtranjero: '',
+    contactoComprador: '',
+    correoComprador: '',
+    direccionComprador: '',
+    paisComprador: '',
+  }
+}
+
+async function openInvoiceOnlyClientModal() {
+  invoiceOnlyClientError.value = ''
+  const client = invoice.customClient
+  Object.assign(invoiceOnlyBuyerForm, client ? {
+    razonSocialComprador: client.razonSocialComprador,
+    rncComprador: client.rncComprador ?? '',
+    identificadorExtranjero: client.identificadorExtranjero ?? '',
+    contactoComprador: client.contactoComprador ?? '',
+    correoComprador: invoice.buyerEmail ?? client.correoComprador ?? '',
+    direccionComprador: client.direccionComprador ?? '',
+    paisComprador: client.paisComprador ?? '',
+  } : emptyInvoiceOnlyBuyerInput())
+  await nextTick()
+  const modal = getInvoiceOnlyClientModal()
+  if (!modal) {
+    showNotification('Modal no disponible', 'No pudimos abrir el formulario del cliente.', 'danger')
+    return
+  }
+  modal.show()
+}
+
+function getInvoiceOnlyClientModal() {
+  if (invoiceOnlyClientModalInstance) return invoiceOnlyClientModalInstance
+  const bootstrap = getBootstrapModalConstructor()
+  if (!invoiceOnlyClientModalElement.value || !bootstrap) return null
+
+  invoiceOnlyClientModalInstance = bootstrap.getOrCreateInstance(invoiceOnlyClientModalElement.value, {
+    backdrop: true,
+    keyboard: true,
+    focus: true,
+  })
+  return invoiceOnlyClientModalInstance
+}
+
+function handleInvoiceOnlyClientModalShown() {
+  invoiceOnlyClientNameInput.value?.focus()
+}
+
+function handleInvoiceOnlyClientModalHidden() {
+  invoiceOnlyClientError.value = ''
+  Object.assign(invoiceOnlyBuyerForm, emptyInvoiceOnlyBuyerInput())
+  invoiceOnlyClientButton.value?.focus()
+}
+
+function saveInvoiceOnlyClient() {
+  try {
+    const buyer = prepareInvoiceOnlyBuyer(invoiceOnlyBuyerForm, invoice.documentType)
+    invoice.clientId = ''
+    invoice.customClient = buyer
+    invoice.buyerEmail = null
+    getInvoiceOnlyClientModal()?.hide()
+    showNotification('Cliente listo', 'Sus datos se usarán solo en esta factura; no se creó un cliente en el directorio.', 'success')
+  } catch (error) {
+    invoiceOnlyClientError.value = error instanceof EcfValidationError
+      ? error.errors.join(' ')
+      : 'No pudimos validar los datos del comprador.'
+  }
+}
+
 function selectClient(client: Client) {
   invoice.clientId = client.id
+  invoice.customClient = null
+  invoice.buyerEmail = null
   if (client.tipoPago && paymentTypes.value.some(item => item.codigo === client.tipoPago)) {
     invoice.paymentType = client.tipoPago
   }
@@ -1338,7 +1506,7 @@ function selectClient(client: Client) {
   closeClientModal()
 }
 
-function clientIdentification(client: Client) {
+function clientIdentification(client: ClientWrite) {
   if (client.rncComprador) return `RNC: ${client.rncComprador}`
   if (client.identificadorExtranjero) return `ID extranjero: ${client.identificadorExtranjero}`
   return 'Sin identificación registrada'
@@ -2327,6 +2495,12 @@ function showNotification(title: string, message: string, type: 'success' | 'dan
   font-size: 0.78rem;
 }
 
+.client-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.45rem 1.1rem;
+}
+
 .link-action {
   border: 0;
   background: transparent;
@@ -2334,6 +2508,11 @@ function showNotification(title: string, message: string, type: 'success' | 'dan
   color: #0d6efd;
   font-size: 0.84rem;
   font-weight: 600;
+}
+
+.link-action:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
 }
 
 .info-alert {
@@ -2495,28 +2674,22 @@ function showNotification(title: string, message: string, type: 'success' | 'dan
 .line-edit-save,
 .line-edit-cancel {
   display: inline-flex;
-  width: 32px;
-  height: 32px;
-  flex: 0 0 32px;
+  width: 38px;
+  height: 38px;
+  flex: 0 0 38px;
   align-items: center;
   justify-content: center;
   padding: 0;
-  border: 1px solid #d9e1ec;
+  border: 1px solid transparent;
   border-radius: 8px;
-  background: #fff;
-  color: #667085;
+  color: #fff;
+  font-size: 1.1rem;
 }
 
-.line-edit-save:hover {
-  border-color: #b7ebc6;
-  background: #edfbf1;
-  color: #16803f;
-}
-
-.line-edit-cancel:hover {
-  border-color: #fecaca;
-  background: #fff5f5;
-  color: #dc2626;
+.line-edit-save:focus-visible,
+.line-edit-cancel:focus-visible {
+  outline: 2px solid #101828;
+  outline-offset: 2px;
 }
 
 .products-empty-state {
@@ -2642,6 +2815,11 @@ function showNotification(title: string, message: string, type: 'success' | 'dan
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: 0.75rem;
+}
+
+.mobile-invoice-items,
+.selector-mobile-list {
+  display: none;
 }
 
 .custom-line-button {
@@ -2867,6 +3045,95 @@ function showNotification(title: string, message: string, type: 'success' | 'dan
   top: 1rem;
 }
 
+.summary-card .side-card-title {
+  margin-bottom: 1rem;
+}
+
+.summary-status {
+  display: block;
+  margin-top: .2rem;
+  color: #667085;
+  font-size: .75rem;
+}
+
+.summary-status i {
+  margin-right: .35rem;
+  color: #d97706;
+  font-size: .42rem;
+  vertical-align: middle;
+}
+
+.summary-section {
+  margin-top: 1.1rem;
+  padding-top: 1.1rem;
+  border-top: 1px solid #e5eaf2;
+}
+
+.summary-section h3 {
+  margin: 0 0 .9rem;
+  color: #101828;
+  font-size: .9rem;
+  font-weight: 700;
+}
+
+.summary-section h3 i {
+  margin-right: .5rem;
+  color: #0d6efd;
+}
+
+.summary-readiness {
+  display: flex;
+  align-items: center;
+  gap: .5rem;
+  margin-top: 1rem;
+  padding: .7rem .8rem;
+  border-radius: 10px;
+  font-size: .82rem;
+  font-weight: 650;
+}
+
+.summary-readiness.has-pending {
+  color: #92400e;
+  background: #fffbeb;
+}
+
+.summary-readiness.is-ready {
+  color: #067647;
+  background: #ecfdf3;
+}
+
+.validation-toggle {
+  display: flex;
+  width: 100%;
+  min-height: 40px;
+  align-items: center;
+  justify-content: space-between;
+  padding: .35rem .15rem 0;
+  border: 0;
+  background: transparent;
+  color: #175cd3;
+  font-size: .81rem;
+  font-weight: 650;
+  text-align: left;
+}
+
+.validation-toggle:focus-visible {
+  outline: 2px solid #0d6efd;
+  outline-offset: 2px;
+}
+
+.validation-toggle + .validation-list {
+  margin: .15rem 0 0;
+  padding: .65rem .8rem;
+  border-radius: 10px;
+  background: #f8fafc;
+}
+
+.validation-toggle + .validation-list li {
+  margin-bottom: .45rem;
+  font-size: .8rem;
+}
+
 .summary-card hr {
   border-color: #e5eaf2;
   opacity: 1;
@@ -3004,6 +3271,185 @@ function showNotification(title: string, message: string, type: 'success' | 'dan
   }
 }
 
+@media (max-width: 767.98px) {
+  .invoice-items-table,
+  .selector-table {
+    display: none;
+  }
+
+  .mobile-invoice-items,
+  .selector-mobile-list {
+    display: grid;
+    gap: .75rem;
+  }
+
+  .mobile-invoice-item,
+  .selector-mobile-card {
+    min-width: 0;
+    padding: 1rem;
+    border: 1px solid #e5eaf2;
+    border-radius: 12px;
+    background: #fff;
+  }
+
+  .mobile-item-heading,
+  .selector-mobile-heading {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: .6rem;
+  }
+
+  .mobile-item-heading {
+    flex-wrap: wrap;
+  }
+
+  .mobile-item-description,
+  .selector-mobile-heading strong {
+    min-width: 0;
+    overflow-wrap: anywhere;
+  }
+
+  .mobile-item-description {
+    flex: 1 1 170px;
+  }
+
+  .mobile-item-description .line-description-editor {
+    min-width: 0;
+  }
+
+  .mobile-item-heading .tax-badge {
+    flex: 0 0 auto;
+  }
+
+  .mobile-item-details {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: .8rem;
+    margin: .9rem 0;
+  }
+
+  .mobile-item-details label,
+  .mobile-item-details > div {
+    display: flex;
+    min-width: 0;
+    flex-direction: column;
+    gap: .25rem;
+    color: #667085;
+    font-size: .76rem;
+    font-weight: 500;
+  }
+
+  .mobile-item-details strong {
+    color: #344054;
+    font-size: .86rem;
+    overflow-wrap: anywhere;
+  }
+
+  .mobile-item-details label small {
+    font-size: .68rem;
+  }
+
+  .mobile-item-details .quantity-input {
+    width: 100%;
+    max-width: 110px;
+    text-align: left;
+  }
+
+  .mobile-item-amount {
+    grid-column: 1 / -1;
+    padding-top: .7rem;
+    border-top: 1px solid #edf0f5;
+  }
+
+  .mobile-item-amount strong {
+    color: #101828;
+    font-size: 1rem;
+  }
+
+  .mobile-item-actions {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: .5rem;
+  }
+
+  .mobile-item-actions .btn,
+  .selector-mobile-card .btn {
+    display: inline-flex;
+    min-height: 44px;
+    align-items: center;
+    justify-content: center;
+    gap: .4rem;
+    font-size: .8rem;
+  }
+
+  .selector-mobile-card {
+    display: flex;
+    flex-direction: column;
+    gap: .35rem;
+  }
+
+  .selector-mobile-card.is-selected {
+    border-color: #b9d3ff;
+    background: #f8fbff;
+  }
+
+  .selector-mobile-card > strong,
+  .selector-mobile-card .selector-mobile-heading > strong {
+    color: #101828;
+    font-size: .9rem;
+  }
+
+  .selector-mobile-card small {
+    color: #667085;
+    font-size: .75rem;
+    overflow-wrap: anywhere;
+  }
+
+  .selector-mobile-facts {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: .75rem;
+    margin: .45rem 0;
+    font-size: .75rem;
+  }
+
+  .selector-mobile-facts > span:first-child {
+    display: flex;
+    flex-direction: column;
+  }
+
+  .selector-mobile-facts strong {
+    color: #344054;
+    font-size: .9rem;
+  }
+
+  .selector-mobile-card .btn {
+    width: 100%;
+    margin-top: .35rem;
+  }
+
+  .product-results {
+    border: 0;
+  }
+
+  .product-modal-body .product-search-wrap {
+    position: sticky;
+    top: 0;
+    z-index: 2;
+    padding-bottom: .6rem;
+    background: #fff;
+  }
+}
+
+@media (max-width: 399.98px) {
+  .mobile-item-actions {
+    grid-template-columns: 1fr;
+  }
+}
+
 @media (max-width: 575.98px) {
   .line-add-actions {
     grid-template-columns: 1fr;
@@ -3037,6 +3483,19 @@ function showNotification(title: string, message: string, type: 'success' | 'dan
     font-size: 1.45rem;
   }
 
+  .summary-row,
+  .summary-exchange {
+    flex-wrap: wrap;
+  }
+
+  .summary-row strong,
+  .summary-total strong,
+  .summary-exchange strong {
+    max-width: 100%;
+    overflow-wrap: anywhere;
+    white-space: normal;
+  }
+
   .product-modal-header,
   .product-modal-body,
   .product-modal-footer {
@@ -3050,7 +3509,12 @@ function showNotification(title: string, message: string, type: 'success' | 'dan
   }
 
   .product-search-wrap .btn {
-    width: 100%;
+    align-self: flex-end;
+    width: auto;
+  }
+
+  .product-search-wrap > i {
+    top: .85rem;
   }
 }
 </style>
